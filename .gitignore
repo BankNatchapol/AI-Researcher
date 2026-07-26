@@ -4,3 +4,9 @@
 .claude/supersaiyan/codex-logs/
 .worktrees/
 nohup.out
+
+# Python
+.env
+.venv/
+__pycache__/
+*.py[cod]
