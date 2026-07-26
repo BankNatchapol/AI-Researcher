@@ -7,7 +7,7 @@
     "number": 6
   },
   "variant": "full",
-  "worker_backend": "workflow",
+  "worker_backend": "codex-exec",
   "model_tier": "medium",
   "target": {
     "type": "repo",
@@ -18,7 +18,15 @@
     "remote": "https://github.com/BankNatchapol/AI-Researcher.git"
   },
   "base_branch": "main",
-  "columns": ["Ready", "Building", "QA", "Review", "Done", "Blocked", "Skipped"],
+  "columns": [
+    "Ready",
+    "Building",
+    "QA",
+    "Review",
+    "Done",
+    "Blocked",
+    "Skipped"
+  ],
   "paths": {
     "project_md": "docs/supersaiyan/PROJECT.md",
     "pre_flight_md": "docs/supersaiyan/pre-flight.md",

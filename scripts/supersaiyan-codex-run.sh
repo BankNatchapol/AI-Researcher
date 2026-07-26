@@ -88,12 +88,20 @@ MAX_WORKERS=$(jq -r '.max_workers // 3' "$CONFIG_PATH")
 BOT_LOGIN=$(jq -r '.notifications.bot_identity // .bot_identity // ""' "$CONFIG_PATH")
 WORKER_BACKEND=$(jq -r '.worker_backend // "workflow"' "$CONFIG_PATH")
 
-# Workflow is the default backend (v1.6.0). This legacy dispatcher only runs
-# when the config opts in explicitly — never by accident or stale habit.
-if [ "$WORKER_BACKEND" != "claude-p" ]; then
-  echo "🛑 board '${CONFIG_SLUG}' uses the workflow backend (worker_backend=${WORKER_BACKEND})." >&2
-  echo "    Run it in-session: /super-board run ${CONFIG_SLUG}  (see references/run-workflow.md)" >&2
-  echo "    To use this legacy dispatcher, set \"worker_backend\": \"claude-p\" in the config." >&2
+# Patched from upstream: this fork dispatches codex, so it opts in on
+# `codex-exec` rather than `claude-p`. The config must say so explicitly — a
+# board still set to `workflow` (the Claude Code dynamic-workflow backend) must
+# never be drained by this dispatcher by accident.
+if [ "$WORKER_BACKEND" != "codex-exec" ]; then
+  echo "🛑 board '${CONFIG_SLUG}' is not configured for the Codex dispatcher (worker_backend=${WORKER_BACKEND})." >&2
+  echo "    This fork dispatches \`codex exec\` workers. To use it, set:" >&2
+  echo "        \"worker_backend\": \"codex-exec\"" >&2
+  echo "    in .claude/supersaiyan/configs/${CONFIG_SLUG}.json" >&2
+  echo "" >&2
+  if [ "$WORKER_BACKEND" = "workflow" ]; then
+    echo "    (Current value 'workflow' means Claude Code dynamic workflows — that path" >&2
+    echo "     runs in a Claude session via /supersaiyan run, not from this script.)" >&2
+  fi
   exit 78
 fi
 
