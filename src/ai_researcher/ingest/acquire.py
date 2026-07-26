@@ -45,10 +45,17 @@ class DownloadResponse:
 DownloadRequester = Callable[[str, dict[str, str]], DownloadResponse]
 
 
+class InvalidPdfUrlError(ValueError):
+    """Raised when an adapter returns a URL the HTTP client cannot construct."""
+
+
 def request_download(url: str, headers: dict[str, str]) -> DownloadResponse:
     """Fetch a candidate PDF with the standard library HTTP client."""
 
-    request = Request(url, headers=headers)
+    try:
+        request = Request(url, headers=headers)
+    except ValueError as error:
+        raise InvalidPdfUrlError(str(error)) from error
     with urlopen(request, timeout=30) as response:
         return DownloadResponse(
             content=response.read(),
@@ -108,8 +115,10 @@ def acquire_pdf(
 ) -> AcquisitionResult:
     """Download and record an openly accessible PDF for one paper."""
 
-    if paper.pdf_path is not None and Path(paper.pdf_path).is_file():
-        return AcquisitionResult(paper_id=paper.id, status="skipped")
+    if paper.pdf_path is not None:
+        if Path(paper.pdf_path).is_file():
+            return AcquisitionResult(paper_id=paper.id, status="skipped")
+        paper.pdf_path = None
 
     source = registry.get(paper.ref.source)
     pdf_url = source.pdf_url(paper.ref)
@@ -120,7 +129,7 @@ def acquire_pdf(
 
     try:
         response = client.get(source.name, pdf_url)
-    except OSError as error:
+    except (InvalidPdfUrlError, OSError) as error:
         return _record_failure(paper, error)
     content_type = (response.content_type or "").partition(";")[0].strip().casefold()
     if content_type != "application/pdf" or not response.content.startswith(b"%PDF-"):
@@ -144,7 +153,7 @@ def acquire_pdf(
 
 def _record_failure(
     paper: AcquisitionPaper,
-    error: OSError,
+    error: InvalidPdfUrlError | OSError,
 ) -> AcquisitionResult:
     paper.oa_status = "download_failed"
     paper.parse_status = "failed"
@@ -159,6 +168,7 @@ __all__ = [
     "AcquisitionPaper",
     "AcquisitionResult",
     "DownloadResponse",
+    "InvalidPdfUrlError",
     "PdfDownloadClient",
     "acquire_pdf",
 ]

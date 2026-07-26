@@ -245,6 +245,86 @@ def test_download_failure_is_recorded_against_paper_without_raising(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_malformed_pdf_url_is_recorded_without_raising(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    acquire = _acquire_module()
+    source = FixtureSource()
+    monkeypatch.setattr(registry, "_SOURCES", {source.name: source})
+    paper = acquire.AcquisitionPaper(
+        id=15,
+        ref=PaperRef(
+            source=source.name,
+            external_id="malformed-url",
+            pdf_url="not-a-url",
+        ),
+    )
+
+    result = acquire.acquire_pdf(
+        paper,
+        storage_dir=tmp_path,
+        client=acquire.PdfDownloadClient(),
+    )
+
+    assert result.status == "failed"
+    assert result.paper_id == 15
+    assert result.error == "unknown url type: 'not-a-url'"
+    assert paper.pdf_path is None
+    assert paper.oa_status == "download_failed"
+    assert paper.parse_status == "failed"
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("pdf_url", "response"),
+    [
+        (None, None),
+        (
+            "https://example.test/not-a-pdf",
+            ("text/html", b"<html>not a PDF</html>"),
+        ),
+    ],
+)
+def test_abstract_only_reacquisition_clears_missing_pdf_path(
+    pdf_url: str | None,
+    response: tuple[str, bytes] | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    acquire = _acquire_module()
+    source = FixtureSource()
+    monkeypatch.setattr(registry, "_SOURCES", {source.name: source})
+    missing_path = tmp_path / "deleted.pdf"
+    paper = acquire.AcquisitionPaper(
+        id=16,
+        ref=PaperRef(
+            source=source.name,
+            external_id="missing-recorded-pdf",
+            pdf_url=pdf_url,
+        ),
+        pdf_path=str(missing_path),
+        oa_status="open_access",
+    )
+
+    def request_fixture(url: str, headers: dict[str, str]):
+        if response is None:
+            raise AssertionError(f"unexpected download: {url}, {headers}")
+        content_type, content = response
+        return acquire.DownloadResponse(content=content, content_type=content_type)
+
+    result = acquire.acquire_pdf(
+        paper,
+        storage_dir=tmp_path,
+        client=acquire.PdfDownloadClient(requester=request_fixture),
+    )
+
+    assert result.status == "abstract_only"
+    assert paper.pdf_path is None
+    assert paper.oa_status == "not_available"
+    assert paper.parse_status == "abstract_only"
+
+
 def test_successful_retry_resets_failed_paper_to_pending(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
