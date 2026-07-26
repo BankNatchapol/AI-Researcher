@@ -23,3 +23,9 @@ def get(name: str) -> EvidenceSource:
         return _SOURCES[name]
     except KeyError as error:
         raise UnknownSourceError(f"Unknown evidence source: {name}") from error
+
+
+def registered() -> tuple[EvidenceSource, ...]:
+    """Return every registered evidence adapter in registration order."""
+
+    return tuple(_SOURCES.values())
