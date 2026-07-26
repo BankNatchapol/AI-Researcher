@@ -19,6 +19,8 @@ class ClaudeCliBackend:
             "json",
             "--max-turns",
             "1",
+            "--tools",
+            "",
         ]
         if schema is not None:
             command.extend(

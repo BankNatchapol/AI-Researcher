@@ -106,6 +106,19 @@ def test_claude_returns_text_for_a_plain_prompt(
     assert command[-1] == "USER:\nSummarize."
 
 
+def test_claude_disables_all_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "claude")
+    run = Mock(return_value=_completed(json.dumps({"result": "Read-only answer"})))
+    monkeypatch.setattr(subprocess, "run", run)
+
+    gateway.complete([{"role": "user", "content": "Answer without tools."}], "answer")
+
+    command = run.call_args.args[0]
+    tools_index = command.index("--tools")
+    assert command[tools_index + 1] == ""
+
+
 def test_claude_returns_an_object_for_a_schema_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
