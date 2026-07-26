@@ -1,0 +1,49 @@
+$ uv sync
+Using CPython 3.11.15
+Creating virtual environment at: .venv
+Resolved 14 packages in 2ms
+Building ai-researcher
+Built ai-researcher
+Prepared 1 package in 183ms
+Installed 13 packages in 18ms
+
+$ uv run python --version
+Python 3.11.15
+
+$ uv run airesearch --help
+Usage: airesearch [OPTIONS] COMMAND [ARGS]...
+
+Research quantum computing and AI literature locally.
+
+Options:
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell.
+  --help                Show this message and exit.
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+5 files already formatted
+
+$ uv run pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0
+collected 3 items
+
+tests/test_cli_smoke.py .                                                [ 33%]
+tests/test_config.py ..                                                  [100%]
+
+============================== 3 passed in 0.10s ===============================
+
+$ test -f .env.example
+exit 0
+
+$ rg -n '^(DATABASE_URL|GROBID_URL|LLM_BACKEND_DEFAULT|CONTACT_EMAIL)=' .env.example
+2:DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_researcher
+5:GROBID_URL=http://localhost:8070
+8:LLM_BACKEND_DEFAULT=codex
+11:CONTACT_EMAIL=researcher@example.com
+
+$ git check-ignore -v .env
+.gitignore:10:.env	.env

@@ -5,3 +5,8 @@
 .worktrees/
 nohup.out
 run.log
+
+# Local Python environment and secrets
+.env
+.venv/
+__pycache__/
