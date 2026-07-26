@@ -154,7 +154,7 @@ def acquire_pdf(
 
 def _record_failure(
     paper: AcquisitionPaper,
-    error: InvalidPdfUrlError | OSError,
+    error: InvalidPdfUrlError | OSError | HTTPException,
 ) -> AcquisitionResult:
     paper.oa_status = "download_failed"
     paper.parse_status = "failed"
