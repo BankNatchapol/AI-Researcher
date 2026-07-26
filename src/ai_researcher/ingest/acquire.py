@@ -138,6 +138,7 @@ def acquire_pdf(
 
     paper.pdf_path = str(destination)
     paper.oa_status = "open_access"
+    paper.parse_status = "pending"
     return AcquisitionResult(paper_id=paper.id, status="downloaded")
 
 

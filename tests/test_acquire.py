@@ -245,6 +245,38 @@ def test_download_failure_is_recorded_against_paper_without_raising(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_successful_retry_resets_failed_paper_to_pending(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    acquire = _acquire_module()
+    source = FixtureSource()
+    monkeypatch.setattr(registry, "_SOURCES", {source.name: source})
+    paper = acquire.AcquisitionPaper(
+        id=14,
+        ref=PaperRef(
+            source=source.name,
+            external_id="successful-retry",
+            pdf_url="https://example.test/retry.pdf",
+        ),
+        oa_status="download_failed",
+        parse_status="failed",
+    )
+    client = acquire.PdfDownloadClient(
+        requester=lambda url, headers: acquire.DownloadResponse(
+            content=(FIXTURES / "sample.pdf").read_bytes(),
+            content_type="application/pdf",
+        )
+    )
+
+    result = acquire.acquire_pdf(paper, storage_dir=tmp_path, client=client)
+
+    assert result.status == "downloaded"
+    assert paper.pdf_path == str(tmp_path / "14.pdf")
+    assert paper.oa_status == "open_access"
+    assert paper.parse_status == "pending"
+
+
 def test_default_acquisition_uses_configured_storage_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
