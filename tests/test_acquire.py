@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass, field
+from http.client import IncompleteRead
 from pathlib import Path
 
 import pytest
@@ -239,6 +240,44 @@ def test_download_failure_is_recorded_against_paper_without_raising(
     assert result.status == "failed"
     assert result.paper_id == 13
     assert result.error == "connection reset by fixture"
+    assert paper.pdf_path is None
+    assert paper.oa_status == "download_failed"
+    assert paper.parse_status == "failed"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_truncated_http_response_is_recorded_against_paper_without_raising(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server that closes the connection mid-body raises IncompleteRead, which
+    is an http.client.HTTPException, not an OSError. Regression for the escaped
+    exception that left oa_status/parse_status/pdf_path unset (rebuild #2)."""
+
+    acquire = _acquire_module()
+    source = FixtureSource()
+    monkeypatch.setattr(registry, "_SOURCES", {source.name: source})
+    paper = acquire.AcquisitionPaper(
+        id=21,
+        ref=PaperRef(
+            source=source.name,
+            external_id="truncated-response",
+            pdf_url="https://example.test/truncated.pdf",
+        ),
+    )
+
+    def truncated_request(url: str, headers: dict[str, str]):
+        raise IncompleteRead(partial=b"%PDF-1.4 partial", expected=4096)
+
+    result = acquire.acquire_pdf(
+        paper,
+        storage_dir=tmp_path,
+        client=acquire.PdfDownloadClient(requester=truncated_request),
+    )
+
+    assert result.status == "failed"
+    assert result.paper_id == 21
+    assert result.error
     assert paper.pdf_path is None
     assert paper.oa_status == "download_failed"
     assert paper.parse_status == "failed"

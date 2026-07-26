@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from http.client import HTTPException
 from pathlib import Path
 from time import monotonic, sleep
 from urllib.request import Request, urlopen
@@ -129,7 +130,7 @@ def acquire_pdf(
 
     try:
         response = client.get(source.name, pdf_url)
-    except (InvalidPdfUrlError, OSError) as error:
+    except (InvalidPdfUrlError, OSError, HTTPException) as error:
         return _record_failure(paper, error)
     content_type = (response.content_type or "").partition(";")[0].strip().casefold()
     if content_type != "application/pdf" or not response.content.startswith(b"%PDF-"):
