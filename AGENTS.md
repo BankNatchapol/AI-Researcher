@@ -99,6 +99,20 @@ uv run airesearch --help       # CLI
 Run `uv run pytest && uv run ruff check .` before opening any PR. A task is not complete
 until both pass.
 
+## Editing shared config files
+
+`.gitignore`, `.env.example`, `pyproject.toml`, `docker-compose.yml`, `AGENTS.md`, and
+`CLAUDE.md` are **append-or-merge only**. Read the file, add your lines, keep everything
+already there.
+
+Never rewrite one of these from scratch, even when a task says "create entries for X". A
+task listing three `.gitignore` entries means *add* those three — not replace the file with
+only those three. Deleting an existing rule is a silent regression that surfaces commits
+later, not now.
+
+If your change makes a file surface something previously ignored or excluded, that is a
+signal you removed a rule — go back and check before reporting the task complete.
+
 ## Conventions
 
 - **Adapters never touch the database and never call an LLM.** They return plain dataclasses,
