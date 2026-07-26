@@ -29,7 +29,7 @@ class ClaudeCliBackend:
                     json.dumps(schema, separators=(",", ":"), sort_keys=True),
                 ]
             )
-        command.append(prompt)
+        command.extend(["--", prompt])
 
         try:
             result = subprocess.run(

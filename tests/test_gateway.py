@@ -119,6 +119,20 @@ def test_claude_disables_all_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     assert command[tools_index + 1] == ""
 
 
+def test_claude_terminates_variadic_tools_before_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "claude")
+    run = Mock(return_value=_completed(json.dumps({"result": "Prompt received"})))
+    monkeypatch.setattr(subprocess, "run", run)
+
+    gateway.complete([{"role": "user", "content": "SENTINEL_PROMPT"}], "answer")
+
+    command = run.call_args.args[0]
+    assert command[-2:] == ["--", "USER:\nSENTINEL_PROMPT"]
+
+
 def test_claude_returns_an_object_for_a_schema_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
