@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-10-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-10-qa
+configfile: pyproject.toml
+collecting ... collected 7 items
+
+tests/test_ingest_pipeline.py::test_discover_queries_every_source_and_merges_by_identity PASSED [ 14%]
+tests/test_ingest_pipeline.py::test_clean_ingest_writes_job_papers_and_sections PASSED [ 28%]
+tests/test_ingest_pipeline.py::test_resumed_ingest_reports_zero_newly_parsed_papers PASSED [ 42%]
+tests/test_ingest_pipeline.py::test_corpus_ceiling_refuses_before_any_download PASSED [ 57%]
+tests/test_ingest_pipeline.py::test_parse_failure_is_recorded_and_run_continues PASSED [ 71%]
+tests/test_ingest_pipeline.py::test_cli_ingest_ceiling_exits_nonzero_with_counts PASSED [ 85%]
+tests/test_ingest_pipeline.py::test_cli_ingest_help_lists_command PASSED [100%]
+
+============================== 7 passed in 1.81s ===============================
