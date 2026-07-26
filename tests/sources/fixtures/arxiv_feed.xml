@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <entry>
+    <id>https://arxiv.org/abs/2401.01234v2</id>
+    <updated>2024-01-15T10:00:00Z</updated>
+    <published>2024-01-12T09:30:00Z</published>
+    <title>Fault-tolerant quantum memories</title>
+    <summary>We demonstrate a fault-tolerant quantum memory.</summary>
+    <author><name>Ada Researcher</name></author>
+    <author><name>Ben Scientist</name></author>
+    <arxiv:doi>10.1234/example.1</arxiv:doi>
+    <arxiv:journal_ref>Journal of Quantum Tests 12, 1 (2024)</arxiv:journal_ref>
+    <arxiv:primary_category term="quant-ph" />
+    <link title="pdf" href="https://arxiv.org/pdf/2401.01234v2" type="application/pdf" />
+  </entry>
+</feed>

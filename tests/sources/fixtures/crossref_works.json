@@ -1,0 +1,11 @@
+{
+  "status": "ok",
+  "message": {
+    "items": [
+      {
+        "DOI": "10.1234/example.1",
+        "title": ["Fault-tolerant quantum memories"]
+      }
+    ]
+  }
+}

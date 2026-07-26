@@ -1,0 +1,12 @@
+{
+  "results": [
+    {
+      "id": "https://openalex.org/W123456789",
+      "doi": "https://doi.org/10.1234/example.1",
+      "display_name": "Logical qubits with lower overhead",
+      "best_oa_location": {
+        "pdf_url": "https://example.org/openalex-paper.pdf"
+      }
+    }
+  ]
+}

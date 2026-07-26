@@ -1,0 +1,18 @@
+{
+  "paperId": "S2-PAPER-123",
+  "title": "Decoding surface codes efficiently",
+  "abstract": "A decoder for experimentally relevant noise.",
+  "authors": [
+    {"name": "Eve Decoder"},
+    {"name": "Finn Quantum"}
+  ],
+  "publicationDate": "2024-03-15",
+  "venue": "Quantum Engineering",
+  "externalIds": {
+    "DOI": "10.1234/example.1",
+    "ArXiv": "2403.01234"
+  },
+  "openAccessPdf": {
+    "url": "https://example.org/s2-paper.pdf"
+  }
+}

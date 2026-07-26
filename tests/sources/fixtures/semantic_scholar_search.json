@@ -1,0 +1,17 @@
+{
+  "total": 1,
+  "offset": 0,
+  "data": [
+    {
+      "paperId": "S2-PAPER-123",
+      "title": "Decoding surface codes efficiently",
+      "externalIds": {
+        "DOI": "10.1234/example.1",
+        "ArXiv": "2403.01234"
+      },
+      "openAccessPdf": {
+        "url": "https://example.org/s2-paper.pdf"
+      }
+    }
+  ]
+}

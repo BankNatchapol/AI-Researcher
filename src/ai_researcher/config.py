@@ -25,6 +25,7 @@ class Settings:
     llm_timeout_seconds: int
     llm_max_concurrency: int
     contact_email: str
+    source_min_intervals: Mapping[str, float]
 
 
 def _required_environment_variable(name: str) -> str:
@@ -45,6 +46,17 @@ def _positive_integer_environment_variable(name: str, default: int) -> int:
     return value
 
 
+def _nonnegative_float_environment_variable(name: str, default: float) -> float:
+    raw_value = os.environ.get(name, str(default))
+    try:
+        value = float(raw_value)
+    except ValueError as error:
+        raise InvalidConfigurationError(f"{name} must be a non-negative number") from error
+    if value < 0:
+        raise InvalidConfigurationError(f"{name} must be a non-negative number")
+    return value
+
+
 def _llm_backend_overrides() -> Mapping[str, str]:
     prefix = "LLM_BACKEND_"
     overrides = {
@@ -53,6 +65,29 @@ def _llm_backend_overrides() -> Mapping[str, str]:
         if name.startswith(prefix) and name != "LLM_BACKEND_DEFAULT" and value
     }
     return MappingProxyType(overrides)
+
+
+def _source_min_intervals() -> Mapping[str, float]:
+    return MappingProxyType(
+        {
+            "arxiv": _nonnegative_float_environment_variable(
+                "ARXIV_MIN_INTERVAL_SECONDS",
+                default=3.0,
+            ),
+            "openalex": _nonnegative_float_environment_variable(
+                "OPENALEX_MIN_INTERVAL_SECONDS",
+                default=0.1,
+            ),
+            "semantic_scholar": _nonnegative_float_environment_variable(
+                "SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS",
+                default=1.0,
+            ),
+            "crossref": _nonnegative_float_environment_variable(
+                "CROSSREF_MIN_INTERVAL_SECONDS",
+                default=0.1,
+            ),
+        }
+    )
 
 
 def get_settings() -> Settings:
@@ -72,4 +107,5 @@ def get_settings() -> Settings:
             default=4,
         ),
         contact_email=_required_environment_variable("CONTACT_EMAIL"),
+        source_min_intervals=_source_min_intervals(),
     )
