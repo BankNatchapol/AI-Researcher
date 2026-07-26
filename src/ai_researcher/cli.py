@@ -110,6 +110,26 @@ def list_scopes() -> None:
         typer.echo(f"{definition.name}\t{estimate.estimate_scope(definition)}")
 
 
+@app.command("ingest")
+def ingest_scope(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None:
+    """Run discover → acquire → parse for a saved scope."""
+
+    from ai_researcher.ingest import pipeline
+
+    try:
+        result = pipeline.run_ingest(scope_name)
+    except pipeline.UnknownScopeError as error:
+        raise typer.BadParameter(str(error)) from error
+    except pipeline.CorpusCeilingExceededError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(
+        f"Ingest {result.state}: found {result.papers_found}, "
+        f"newly parsed {result.papers_newly_parsed}."
+    )
+
+
 def _parse_date(value: str | None, option_name: str) -> date | None:
     if value is None:
         return None
