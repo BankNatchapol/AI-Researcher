@@ -1,0 +1,83 @@
+=== AC5: uv run pytest tests/test_status.py -v ===
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-11-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-11-qa
+configfile: pyproject.toml
+collecting ... collected 5 items
+
+tests/test_status.py::test_scope_status_aggregates_counts_by_sql PASSED  [ 20%]
+tests/test_status.py::test_scope_status_for_one_scope_lists_failed_papers PASSED [ 40%]
+tests/test_status.py::test_status_cli_prints_counts_and_scope_filter PASSED [ 60%]
+tests/test_status.py::test_logs_go_to_stderr_not_stdout PASSED           [ 80%]
+tests/test_status.py::test_ingest_emits_per_paper_progress_lines PASSED  [100%]
+
+============================== 5 passed in 0.75s ===============================
+EXIT:0
+
+=== Full suite: uv run pytest ===
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-11-qa
+configfile: pyproject.toml
+testpaths: tests
+collected 96 items
+
+tests/sources/test_arxiv.py ....                                         [  4%]
+tests/sources/test_crossref.py .                                         [  5%]
+tests/sources/test_openalex.py ....                                      [  9%]
+tests/sources/test_registry.py .....                                     [ 14%]
+tests/sources/test_semantic_scholar.py ....                              [ 18%]
+tests/test_acquire.py .............                                      [ 32%]
+tests/test_cli_smoke.py .                                                [ 33%]
+tests/test_config.py ...                                                 [ 36%]
+tests/test_dedup.py .......                                              [ 43%]
+tests/test_gateway.py ................                                   [ 60%]
+tests/test_ingest_pipeline.py .......                                    [ 67%]
+tests/test_migrations.py ......                                          [ 73%]
+tests/test_no_direct_model_calls.py .....                                [ 79%]
+tests/test_parse.py .....                                                [ 84%]
+tests/test_scoping.py .......                                            [ 91%]
+tests/test_services_config.py ...                                        [ 94%]
+tests/test_status.py .....                                               [100%]
+
+============================== 96 passed in 7.59s ==============================
+EXIT:0
+
+=== uv run ruff check . ===
+[1;32mAll checks passed![0m
+EXIT:0
+
+=== uv run ruff format --check . ===
+57 files already formatted
+EXIT:0
+
+=== AC3 probe: logger stderr binding ===
+INFO ai_researcher.probe: this-should-go-to-stderr
+INFO_enabled True
+DEBUG_enabled_default False
+DEBUG_enabled_verbose True
+stderr_handler True
+STDOUT_MARKER_ONLY
+EXIT:0
+
+=== AC3: stdout vs stderr separation (airesearch status --help) ===
+stdout:
+                                                                                
+ Usage: airesearch status [OPTIONS]                                             
+                                                                                
+ Print per-scope corpus counts (papers, parsed, abstract-only, failed,          
+ sections).                                                                     
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --scope        <str>  Restrict output to one scope and list its failed       │
+│                       papers.                                                │
+│ --help                Show this message and exit.                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+stderr_bytes:       0
+
+=== AC3: --verbose enables DEBUG level (configure_logging) ===
+INFO ai_researcher.ac3: INFO_ON_STDERR
+DEBUG ai_researcher.ac3: DEBUG_ON_STDERR
+STDOUT_ONLY
