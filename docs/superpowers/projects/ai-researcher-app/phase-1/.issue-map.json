@@ -1,0 +1,57 @@
+{
+  "01-scaffold-python-project": {
+    "number": 1,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/1",
+    "order": 1
+  },
+  "02-docker-compose-services": {
+    "number": 2,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/2",
+    "order": 2
+  },
+  "03-migration-runner-and-schema": {
+    "number": 3,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/3",
+    "order": 3
+  },
+  "04-litellm-gateway": {
+    "number": 4,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/4",
+    "order": 4
+  },
+  "05-evidence-source-adapters": {
+    "number": 5,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/5",
+    "order": 5
+  },
+  "06-paper-dedup-provenance": {
+    "number": 6,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/6",
+    "order": 6
+  },
+  "07-topic-scoping-dialogue": {
+    "number": 7,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/7",
+    "order": 7
+  },
+  "08-pdf-acquisition": {
+    "number": 8,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/8",
+    "order": 8
+  },
+  "09-grobid-tei-parsing": {
+    "number": 9,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/9",
+    "order": 9
+  },
+  "10-ingest-pipeline": {
+    "number": 10,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/10",
+    "order": 10
+  },
+  "11-status-and-logging": {
+    "number": 11,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/11",
+    "order": 11
+  }
+}
