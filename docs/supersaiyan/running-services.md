@@ -9,6 +9,16 @@ Create the local environment file once, then start the stack:
 
 ```bash
 cp .env.example .env
+```
+
+Set `POSTGRES_PASSWORD` in `.env` to a non-empty local password. The committed example
+deliberately contains no credential. Load the connection details into the current shell
+and start the stack:
+
+```bash
+set -a
+source .env
+set +a
 docker compose up -d
 docker compose ps
 ```

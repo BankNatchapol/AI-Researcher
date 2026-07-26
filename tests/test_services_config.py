@@ -33,3 +33,13 @@ def test_compose_declares_native_healthy_backing_services() -> None:
     assert compose.count("platform: linux/arm64") == 2
     assert compose.count("healthcheck:") == 2
     assert "postgres_data:" in compose
+
+
+def test_postgres_password_must_come_from_local_environment() -> None:
+    compose = (REPO_ROOT / "docker-compose.yml").read_text()
+    example_environment = (REPO_ROOT / ".env.example").read_text()
+
+    assert "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?" in compose
+    assert "POSTGRES_PASSWORD:-" not in compose
+    assert "POSTGRES_PASSWORD=\n" in example_environment
+    assert "postgres:postgres@" not in example_environment
