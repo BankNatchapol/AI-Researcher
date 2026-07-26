@@ -1,7 +1,7 @@
 ---
 title: Define the EvidenceSource protocol, registry, and three scholarly adapters
 order: 5
-depends_on_task: 04-litellm-gateway
+depends_on_task: 04-cli-model-gateway
 project: ai-researcher-app
 phase: 1
 depends_on_phase: null

@@ -33,8 +33,13 @@ Decisions that apply across **all** phases:
   PageIndex File System shortlists papers; an LLM reasons down selected trees to sections.
 - **Local services via Docker Compose:** Postgres and GROBID. GROBID publishes ARM images
   for Apple Silicon. One `docker compose up` brings up the whole backing stack.
-- **Model access only through a LiteLLM gateway module.** No provider SDK is imported
-  anywhere outside that module. Routing by job type is configuration, not product logic.
+- **Model access only through the CLI gateway module.** Access is via CLI subscription
+  (`claude -p`, `codex exec`) — there is no provider API key anywhere. No module outside
+  `ai_researcher/llm/` invokes a model CLI or imports an LLM SDK. Backend selection by job
+  type is configuration, not product logic.
+- **Model calls are non-agentic and batched.** Gateway calls run read-only with a turn limit
+  so they can never modify the working tree. Callers batch many items into one call — at CLI
+  latency, per-item calls are the difference between an overnight job and an infeasible one.
 - **Two surfaces over one core library:** a CLI and an MCP server. Neither contains business
   logic; both call the same core. No web UI in v1.
 - **Sources are plugins.** Two registries with separate interfaces:
@@ -72,7 +77,7 @@ From `CLAUDE.md` and the confirmed design:
 
 | Phase | Name | Goal | Produces | Depends on | Status |
 |-------|------|------|----------|------------|--------|
-| 1 | Foundation & Corpus Ingestion | A scoped set of quantum/AI papers is discovered, fetched, parsed to structured TEI, and stored locally | Repo skeleton, Docker Compose (Postgres+GROBID), DB schema, LiteLLM gateway, `EvidenceSource` registry + arXiv/OpenAlex/S2 adapters, topic scoping, PDF acquisition, GROBID→TEI storage, CLI `scope`/`ingest`/`status` | — | Ready |
+| 1 | Foundation & Corpus Ingestion | A scoped set of quantum/AI papers is discovered, fetched, parsed to structured TEI, and stored locally | Repo skeleton, Docker Compose (Postgres+GROBID), DB schema, CLI model gateway, `EvidenceSource` registry + arXiv/OpenAlex/S2 adapters, topic scoping, PDF acquisition, GROBID→TEI storage, CLI `scope`/`ingest`/`status` | — | Ready |
 | 2 | Vectorless Tree Retrieval & Grounded Q&A | Ask a question, get an answer where every statement cites a specific section with a page range | TEI→node tree builder, corpus-level PageIndex File System, tree traversal with budget + stopping rule, node-anchored answer synthesis, MCP server, CLI `ask`, gold set, eval harness | Phase 1 | Queued |
 | 3 | Structured Extraction & Dual Scoring | Claims, methods, results, and dates are extracted, anchored to tree nodes, and carry separate confidence and evidence-quality scores | Extraction schema + pipeline, passage-anchored records, evidence linking, confidence scorer, evidence-quality rubric, claim identity/dedup, CLI `extract`/`claims`, MCP tools, extraction eval | Phase 2 | Queued |
 | 4 | Monitoring, Discourse & Temporal Digests | A daily sweep surfaces what changed for tracked topics and claims, with community attention in a separate channel | `DiscourseSource` registry + Reddit/HN/Google-blogs/HF-alphaXiv adapters, APScheduler jobs, change detection, temporal digests, topic+claim subscriptions, SciRate spike with defer exit, CLI `monitor`/`digest` | Phase 3 | Queued |
@@ -101,6 +106,13 @@ Recorded so later phases inherit them rather than rediscovering them:
 6. **Naming collision.** SciRate "scites" (community upvotes, an attention signal) are
    unrelated to scite.ai "Smart Citations" (citation-intent classification, an evidence
    signal). Conflating them would corrupt the scoring layer.
+7. **CLI-subscription model access is the binding cost constraint.** There is no provider
+   API key; every model call is a `claude -p` or `codex exec` subprocess with multi-second
+   startup, subject to subscription rate caps. This makes **batching mandatory, not an
+   optimization**. Per-item calls at the 1,000-paper ceiling would mean 15,000+ invocations
+   and 20+ hours; batched, the same work is roughly 1,000 calls and runs overnight. Any task
+   that loops the gateway per item is a defect. Recorded escape hatch: if API access is ever
+   obtained, add a LiteLLM backend behind the same `complete()` interface — no caller changes.
 
 ## Running the Project
 

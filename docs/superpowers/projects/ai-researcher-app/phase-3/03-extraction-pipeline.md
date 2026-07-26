@@ -37,7 +37,12 @@ version.
 - Produces: `extract_paper()` — called by task 04 evidence linking, and re-invoked by Phase 4's evidence sweep on newly discovered papers
 
 **Behaviour notes:**
-- Extraction is batched per section group rather than per node, keeping call volume proportional to paper count
+- Extraction is batched per section group rather than per node, keeping call volume
+  proportional to paper count. This is mandatory, not an optimization — see PROJECT.md risk
+  7: model access is a CLI subprocess on a subscription, so per-node calls would be tens of
+  thousands of invocations. A test must assert call count scales with papers, not with nodes.
+- Use the gateway's `schema` argument so extraction output is schema-constrained rather than
+  parsed out of free text
 - Papers with `parse_status = 'abstract_only'` are extracted from their single-node tree, not skipped
 - A per-paper failure is recorded and the run continues, matching Phase 1's ingest behaviour
 

@@ -28,7 +28,7 @@ instruction files.
 
 | Test | Asserts |
 |---|---|
-| `tests/test_no_direct_litellm.py` | Only `llm/gateway.py` imports `litellm` |
+| `tests/test_no_direct_model_calls.py` | No module outside `llm/` invokes `claude`/`codex` or imports an LLM SDK |
 | `tests/test_score_separation.py` | No code path performs arithmetic combining `confidence` and `evidence_quality`; `scoring/` imports nothing from `discourse/` |
 | `tests/test_channel_separation.py` | `EvidenceSource` and `DiscourseSource` share no base class; no discourse value reaches `claim_score` |
 | `tests/test_extraction_schema.py` | Every extraction table rejects a null `tree_node_id` |

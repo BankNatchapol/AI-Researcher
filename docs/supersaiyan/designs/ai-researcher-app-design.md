@@ -60,7 +60,8 @@ unused for two weeks, that is a signal to stop, not to keep building.
 
 A local-first research engine for quantum computing and AI, built as one core library with
 two thin surfaces (CLI and MCP server). The owner keeps all data and indexes on their own
-machine; LLM inference is routed to cloud providers through a single gateway.
+machine; model access goes through a single gateway that shells out to the `claude` or
+`codex` CLI, since access is by subscription rather than a provider API key.
 
 The architecture inverts the usual priority: **retrieval → parsing → extraction → evidence
 linking → scoring → synthesis**. Generated prose is the last layer, never the center.
@@ -84,9 +85,9 @@ Five design commitments distinguish it from the surveyed landscape:
 | Store | PostgreSQL (plain) | One durable store for papers, TEI, trees, claims, evidence links, scores, jobs. No vector extension in v1. |
 | Parsing | GROBID (Docker) | Apache 2.0, TEI XML with real section hierarchy — feeds the tree builder directly and patches PageIndex's documented PDF-parsing weakness. ~10.6 PDF/sec on 16 CPUs. |
 | Retrieval | PageIndex-style trees (vectorless) | Per-paper node trees (title, summary, section/page range) plus a corpus-level PageIndex File System for shortlisting. LLM reasoning replaces similarity search. |
-| Model gateway | LiteLLM | One interface across Anthropic/OpenAI/local. Routing is config, not product logic. |
+| Model gateway | CLI subprocess (`claude -p` / `codex exec`) | Access is via CLI subscription, not a provider API key. Backend resolved per job from config; calls run read-only and turn-limited. |
 | Surfaces | CLI + MCP server | Both over one core library. MCP makes the engine callable from Claude Code directly. |
-| Runtime | Python 3.11+, uv, pytest, ruff | Matches paper-qa (3.11+), LiteLLM, GROBID clients, and the MCP SDK. |
+| Runtime | Python 3.11+, uv, pytest, ruff | Matches paper-qa (3.11+), GROBID clients, and the MCP SDK. |
 | Local services | Docker Compose | Postgres + GROBID in one `docker compose up`. GROBID publishes ARM images for Apple Silicon. |
 | Scheduler | APScheduler (Phase 3) | Minimal operational surface for daily sweeps. |
 
@@ -136,7 +137,7 @@ workflow of manual browsing plus ungrounded chat.
 1. **Personal tool, single user.** No auth, no multi-tenancy, no onboarding.
 2. **Local-first = owning data and index.** Papers, parsed text, embeddings, claims, and
    scores live in local Postgres. Passages *do* leave the machine on LLM calls — accepted.
-3. **v1 stack is plain Postgres, GROBID, LiteLLM, PageIndex-style trees.** One store, two
+3. **v1 stack is plain Postgres, GROBID, a CLI model gateway, PageIndex-style trees.** One store, two
    services, no vector index. Retrieval is vectorless: GROBID hierarchy → per-paper node
    trees → corpus-level File System for shortlisting → LLM tree traversal.
 4. **Two surfaces over one core library:** CLI and MCP. No web UI in v1.
@@ -164,7 +165,8 @@ load-bearing facts were re-checked directly):
 
 - **paper-qa / PaperQA2** — Apache 2.0, Python 3.11+, CalVer since Dec 2025. Three-tool
   agentic flow: paper search → gather evidence → generate answer. Already routes through
-  LiteLLM. The closest reference architecture for Phase 1; permissive license.
+  LiteLLM. The closest reference architecture for Phase 1; permissive license. Note its
+  LiteLLM path is unusable here — see the subscription constraint below.
 - **GROBID** — Apache 2.0, OpenJDK 21, Docker images published, TEI XML with 68 labels.
 - **PageIndex** (VectifyAI, Sept 2025) — MIT, Python, 34.6k stars, 322 commits. Builds a
   hierarchical tree per document (each node: title, summary, page range), then has an LLM

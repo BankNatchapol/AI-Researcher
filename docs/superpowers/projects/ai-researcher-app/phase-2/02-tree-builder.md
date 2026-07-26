@@ -19,7 +19,7 @@ with concise LLM-generated summaries, cached and versioned so rebuilds are per-p
 
 - [ ] `uv run airesearch index <scope>` builds trees for parsed papers lacking a current tree and reports built versus skipped counts; re-running with no new papers and no version change builds zero and exits 0
 - [ ] Every `tree_node` links to exactly one `section` and inherits its `page_start`, `page_end`, and section path
-- [ ] Every node `summary` is 60 words or fewer, and summaries are generated in one batched call per paper rather than one call per node
+- [ ] Every node `summary` is 60 words or fewer, and summaries are generated in **one batched call per paper**, asserted by a test that counts gateway calls and fails if the count scales with node count rather than paper count
 - [ ] Trees deeper than 4 levels are flattened at level 4 with the original depth preserved in `node_path`, asserted by a test on a 6-level fixture
 - [ ] `uv run pytest tests/test_tree_builder.py` exits 0 with the LLM mocked
 

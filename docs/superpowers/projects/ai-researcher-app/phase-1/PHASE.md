@@ -15,8 +15,8 @@ local corpus that later phases index and reason over.
    arm64-compatible, with a health-check wait so `ingest` fails fast when services are down.
 3. **Database schema and migrations** — tables for sources, scopes, papers, authors,
    provenance, sections, and ingest jobs.
-4. **LiteLLM gateway module** — the single place any model is called. Used in this phase for
-   the scoping dialogue only.
+4. **CLI model gateway** — the single place any model is called, shelling out to `claude -p`
+   or `codex exec` selected per job type. Used in this phase for the scoping dialogue only.
 5. **`EvidenceSource` interface and registry** — a fixed protocol plus a registry so a new
    source is one new adapter file and one registration line.
 6. **Three evidence adapters** — arXiv, OpenAlex, Semantic Scholar. Crossref used for DOI
@@ -53,7 +53,7 @@ Phase 2 consumes:
 - `section` rows forming a complete parent/child hierarchy per paper, each carrying
   `section_path`, `title`, `page_start`, `page_end`, `char_start`, `char_end`, `body_text`
 - `scope` rows defining which papers belong to a working corpus
-- `ai_researcher.llm.gateway` — the LiteLLM call interface
+- `ai_researcher.llm.gateway` — the CLI model-call interface
 - `ai_researcher.sources.registry` — the `EvidenceSource` registry
 - `ai_researcher.db` — connection handling and the migration runner
 - The `airesearch` CLI app object, so Phase 2 adds `ask` as a new subcommand
@@ -72,7 +72,9 @@ src/ai_researcher/
     migrations/           # numbered .sql files, applied in order
     models.py             # table definitions
   llm/
-    gateway.py            # the ONLY module that calls LiteLLM
+    gateway.py            # the ONLY module that invokes a model CLI
+    registry.py           # job -> backend resolution
+    backends/             # claude_cli.py, codex_cli.py
   sources/
     base.py               # EvidenceSource protocol
     registry.py           # name -> adapter registration and lookup
@@ -133,9 +135,14 @@ caps — so `ingest` is reproducible and re-runnable without repeating the dialo
    - `section(id, paper_id, parent_id, section_path, title, ordinal, page_start, page_end, char_start, char_end, body_text)`
    - `ingest_job(id, scope_id, state, papers_found, papers_parsed, started_at, finished_at, error)`
 6. `paper` enforces uniqueness on `doi` and on `arxiv_id` (both nullable, unique when present).
-7. `ai_researcher.llm.gateway` exposes a single `complete()` function routing through
-   LiteLLM; model names come from config, never hardcoded at call sites. No other module
-   imports `litellm` — enforced by a test that greps the package.
+7. `ai_researcher.llm.gateway` exposes a single `complete(messages, job, schema=None)`
+   function that shells out to a CLI backend resolved from config by job type — `claude -p`
+   or `codex exec`. There is no provider API key anywhere: access is via CLI subscription.
+   Gateway calls run non-agentically (`codex exec --sandbox read-only`, `claude -p
+   --max-turns 1`) so a model call can never modify the working tree. Every call has a
+   timeout, and parallel subprocesses are capped by `LLM_MAX_CONCURRENCY`. No module outside
+   `ai_researcher/llm/` invokes a CLI or imports an LLM SDK — enforced by a test that walks
+   the package.
 8. `EvidenceSource` is defined as a `Protocol` in `sources/base.py`; the registry maps
    source name → adapter instance and raises a named error for an unknown source.
 9. arXiv, OpenAlex, and Semantic Scholar adapters each implement the protocol and are
@@ -173,8 +180,8 @@ Observable outcomes that prove this phase is complete:
 
 - `uv sync && uv run ruff check . && uv run ruff format --check .` exits 0.
 - `uv run pytest` exits 0 with all adapter tests running offline against fixtures.
-- `uv run pytest tests/test_no_direct_litellm.py` passes, proving only
-  `ai_researcher/llm/gateway.py` imports `litellm`.
+- `uv run pytest tests/test_no_direct_model_calls.py` passes, proving no module outside
+  `ai_researcher/llm/` invokes `claude` or `codex` or imports an LLM SDK.
 - `docker compose up -d` followed by `docker compose ps` shows `postgres` and `grobid` both
   healthy.
 - `uv run airesearch db migrate` applies all migrations from an empty database and exits 0;

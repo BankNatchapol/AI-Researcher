@@ -52,7 +52,10 @@ separate registries. Do not unify them.
 
 ## 5. One model-call boundary
 
-Only `ai_researcher/llm/gateway.py` may import `litellm` or any provider SDK. A test greps
+Only modules under `ai_researcher/llm/` may invoke a model CLI or import an LLM SDK.
+Access is via CLI subscription (`claude -p`, `codex exec`) — there is no provider API key.
+Gateway calls are non-agentic (read-only, turn-limited) and callers batch many items into
+one call rather than looping per item. A test walks
 the package and fails otherwise. Model names come from config by job type — never a string
 literal at a call site.
 

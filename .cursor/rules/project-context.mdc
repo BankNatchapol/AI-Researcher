@@ -35,7 +35,8 @@ Board: https://github.com/users/BankNatchapol/projects/6
 ## Stack
 
 Python 3.11+ · `uv` (not Poetry, not pip) · `pytest` · `ruff` (not black/flake8) ·
-PostgreSQL plain · GROBID in Docker · LiteLLM gateway · CLI + MCP over one core library.
+PostgreSQL plain · GROBID in Docker · CLI model gateway (claude -p / codex exec, no API
+keys) · CLI + MCP over one core library.
 
 ```bash
 uv run pytest && uv run ruff check .

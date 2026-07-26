@@ -14,11 +14,6 @@
     "url": "https://github.com/BankNatchapol/AI-Researcher/issues/3",
     "order": 3
   },
-  "04-litellm-gateway": {
-    "number": 4,
-    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/4",
-    "order": 4
-  },
   "05-evidence-source-adapters": {
     "number": 5,
     "url": "https://github.com/BankNatchapol/AI-Researcher/issues/5",
@@ -53,5 +48,10 @@
     "number": 11,
     "url": "https://github.com/BankNatchapol/AI-Researcher/issues/11",
     "order": 11
+  },
+  "04-cli-model-gateway": {
+    "number": 4,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/4",
+    "order": 4
   }
 }

@@ -21,7 +21,7 @@ A `uv`-managed Python 3.11+ project exists with a `src/ai_researcher/` layout, a
 - [ ] `uv run airesearch --help` prints the CLI usage text and exits 0
 - [ ] `uv run ruff check .` and `uv run ruff format --check .` both exit 0 with zero findings
 - [ ] `uv run pytest` exits 0 and collects at least one test
-- [ ] `.env.example` exists listing `DATABASE_URL`, `GROBID_URL`, `LLM_MODEL_DEFAULT`, and `CONTACT_EMAIL`; `.env` is gitignored
+- [ ] `.env.example` exists listing `DATABASE_URL`, `GROBID_URL`, `LLM_BACKEND_DEFAULT`, and `CONTACT_EMAIL`; `.env` is gitignored
 
 ## Implementation notes
 
@@ -30,7 +30,7 @@ A `uv`-managed Python 3.11+ project exists with a `src/ai_researcher/` layout, a
 - Create: `src/ai_researcher/__init__.py`
 - Create: `src/ai_researcher/cli.py` — Typer app object named `app`, exported for later subcommand registration
 - Create: `src/ai_researcher/config.py` — settings read from environment variables only, with no hardcoded defaults for secrets
-- Create: `.env.example`
+- Create: `.env.example` — `LLM_BACKEND_DEFAULT` names a CLI backend (`claude` or `codex`), not a model or an API key
 - Create: `.gitignore` entries for `.env`, `.venv/`, `__pycache__/`
 - Test: `tests/test_cli_smoke.py` — asserts `airesearch --help` exits 0
 - Test: `tests/test_config.py` — asserts config reads `DATABASE_URL` from the environment and raises a named error when a required variable is missing
