@@ -28,10 +28,12 @@ from ai_researcher.ingest.dedup import MergedPaper
 from ai_researcher.ingest.discover import discover_candidates
 from ai_researcher.ingest.parse import ParsePaper, ParseResult, parse_pdf
 from ai_researcher.ingest.tei import SectionRecord
+from ai_researcher.logging import get_logger
 from ai_researcher.sources.base import PaperRef
 
 CORPUS_CEILING = 1000
 TERMINAL_PARSE_STATUSES = frozenset({"parsed", "abstract_only"})
+logger = get_logger(__name__)
 
 ConnectionFactory = Callable[[], AbstractContextManager[Connection]]
 DiscoverFn = Callable[..., list[MergedPaper]]
@@ -111,7 +113,14 @@ def run_ingest(
         raise error
 
     papers_newly_parsed = 0
-    for candidate in candidates:
+    total = papers_found
+    for index, candidate in enumerate(candidates, start=1):
+        logger.info(
+            "Processing paper %s/%s: %s",
+            index,
+            total,
+            candidate.title,
+        )
         with open_connection() as connection:
             paper_id, parse_status, pdf_path, oa_status = _upsert_paper(
                 connection,
@@ -138,6 +147,9 @@ def run_ingest(
                     pdf_path=acquisition_paper.pdf_path,
                     oa_status=acquisition_paper.oa_status,
                     parse_status=acquisition_paper.parse_status,
+                    parse_error=acquisition.error
+                    if acquisition_paper.parse_status == "failed"
+                    else None,
                 )
             )
 
@@ -159,6 +171,9 @@ def run_ingest(
                 .values(
                     tei_xml=parse_paper.tei_xml,
                     parse_status=parse_paper.parse_status,
+                    parse_error=parse_result.error
+                    if parse_paper.parse_status == "failed"
+                    else None,
                 )
             )
             if parse_result.status == "parsed":

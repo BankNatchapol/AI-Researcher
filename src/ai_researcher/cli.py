@@ -12,8 +12,19 @@ app.add_typer(scope_app, name="scope")
 
 
 @app.callback()
-def main() -> None:
+def main(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable DEBUG logging on stderr.",
+    ),
+) -> None:
     """Research quantum computing and AI literature locally."""
+
+    from ai_researcher.logging import configure_logging
+
+    configure_logging(verbose=verbose)
 
 
 @db_app.command("migrate")
@@ -128,6 +139,38 @@ def ingest_scope(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None
         f"Ingest {result.state}: found {result.papers_found}, "
         f"newly parsed {result.papers_newly_parsed}."
     )
+
+
+@app.command("status")
+def corpus_status(
+    scope: str | None = typer.Option(
+        None,
+        "--scope",
+        help="Restrict output to one scope and list its failed papers.",
+    ),
+) -> None:
+    """Print per-scope corpus counts (papers, parsed, abstract-only, failed, sections)."""
+
+    from ai_researcher.corpus.status import scope_status
+
+    statuses = scope_status(scope)
+    if not statuses:
+        if scope is not None:
+            raise typer.BadParameter(f"Unknown scope: {scope}")
+        typer.echo("No scopes found.")
+        return
+
+    for item in statuses:
+        typer.echo(f"scope: {item.scope_name}")
+        typer.echo(f"  papers: {item.paper_count}")
+        typer.echo(f"  parsed: {item.parsed_count}")
+        typer.echo(f"  abstract_only: {item.abstract_only_count}")
+        typer.echo(f"  failed: {item.failed_count}")
+        typer.echo(f"  sections: {item.section_count}")
+        if scope is not None and item.failed_papers:
+            typer.echo("  Failed papers:")
+            for failed in item.failed_papers:
+                typer.echo(f"    - {failed.title}: {failed.error}")
 
 
 def _parse_date(value: str | None, option_name: str) -> date | None:

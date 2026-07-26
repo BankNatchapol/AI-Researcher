@@ -78,6 +78,7 @@ paper = Table(
     Column("pdf_path", Text),
     Column("tei_xml", Text),
     Column("parse_status", Text, nullable=False, server_default=text("'pending'")),
+    Column("parse_error", Text),
     Column(
         "created_at",
         DateTime(timezone=True),

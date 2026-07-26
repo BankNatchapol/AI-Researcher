@@ -41,6 +41,7 @@ EXPECTED_COLUMNS = {
         "pdf_path",
         "tei_xml",
         "parse_status",
+        "parse_error",
         "created_at",
     },
     "paper_author": {"id", "paper_id", "position", "full_name"},
@@ -150,6 +151,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
 
     assert first_run.exit_code == 0, first_run.output
     assert "Applied migration 0001_initial" in first_run.output
+    assert "Applied migration 0002_paper_parse_error" in first_run.output
     assert second_run.exit_code == 0, second_run.output
     assert "already up to date" in second_run.output
 
@@ -178,9 +180,11 @@ def test_cli_applies_all_migrations_and_is_idempotent(
         actual_columns.setdefault(table_name, set()).add(column_name)
     for table_name, expected in EXPECTED_COLUMNS.items():
         assert actual_columns[table_name] == expected
-    assert len(applied) == 1
+    assert len(applied) == 2
     assert applied[0][0:2] == (1, "0001_initial")
+    assert applied[1][0:2] == (2, "0002_paper_parse_error")
     assert applied[0][2] is not None
+    assert applied[1][2] is not None
 
 
 @pytest.mark.parametrize("identifier", ["doi", "arxiv_id"])
