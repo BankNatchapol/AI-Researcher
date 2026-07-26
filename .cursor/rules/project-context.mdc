@@ -1,0 +1,44 @@
+---
+description: Core project context and dispatch model for AI-Researcher
+alwaysApply: true
+---
+
+# AI-Researcher — always-on context
+
+A local-first research engine for quantum computing and AI literature, single user.
+Read `AGENTS.md` at the repo root — it is the shared source of truth across Codex, Cursor,
+and Claude Code, and it governs everything below.
+
+## Work comes from task files, not chat
+
+```
+docs/superpowers/projects/ai-researcher-app/
+  PROJECT.md                 # cross-phase architecture
+  phase-N/PHASE.md           # phase scope, requirements, acceptance
+  phase-N/NN-task-name.md    # one task = one PR
+```
+
+Before starting: read the task file → its `PHASE.md` → `PROJECT.md`. A task is done only
+when every acceptance criterion passes by running its stated command.
+
+Tasks form a strict chain via `depends_on_task` frontmatter. Do not start a task whose
+predecessor has not merged.
+
+## Cursor owns phases 3 and 4
+
+- Phase 3 — Structured Extraction & Dual Scoring
+- Phase 4 — Monitoring, Discourse & Temporal Digests
+
+Codex owns phases 1–2. These run manually — no autonomous loop moves board cards.
+Board: https://github.com/users/BankNatchapol/projects/6
+
+## Stack
+
+Python 3.11+ · `uv` (not Poetry, not pip) · `pytest` · `ruff` (not black/flake8) ·
+PostgreSQL plain · GROBID in Docker · LiteLLM gateway · CLI + MCP over one core library.
+
+```bash
+uv run pytest && uv run ruff check .
+```
+
+Both must pass before any PR.

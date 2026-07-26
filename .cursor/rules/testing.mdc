@@ -1,0 +1,54 @@
+---
+description: Test conventions and the invariant tests that must never be weakened
+globs: tests/**/*.py
+alwaysApply: false
+---
+
+# Test conventions
+
+## Tests run offline
+
+Adapter and pipeline tests use committed fixtures under `tests/fixtures/` and
+`tests/discourse/fixtures/`. No test may require live network access to pass.
+
+Tests that genuinely need a running service (Postgres, GROBID) are marked and skipped when
+the service is unreachable — they never fail the suite on a machine without Docker running.
+
+## Acceptance criteria are the spec
+
+Each task file lists exact commands. Write the tests that make those commands pass, not
+tests that merely look thorough. If a task says a command must exit 0 and print a count,
+assert on the exit code and the count.
+
+## Invariant tests — do not weaken, skip, or delete
+
+These exist to catch a non-compliant change regardless of which tool wrote it. Three
+different agents work in this repo; these tests are the actual enforcement layer, not the
+instruction files.
+
+| Test | Asserts |
+|---|---|
+| `tests/test_no_direct_litellm.py` | Only `llm/gateway.py` imports `litellm` |
+| `tests/test_score_separation.py` | No code path performs arithmetic combining `confidence` and `evidence_quality`; `scoring/` imports nothing from `discourse/` |
+| `tests/test_channel_separation.py` | `EvidenceSource` and `DiscourseSource` share no base class; no discourse value reaches `claim_score` |
+| `tests/test_extraction_schema.py` | Every extraction table rejects a null `tree_node_id` |
+| `tests/test_digest.py` | The digest has separate "Evidence" and "Community attention" sections, and no attention figure appears in the evidence section |
+
+If one of these fails, the fix is the source code — never the test.
+
+## Determinism
+
+LLM calls are mocked in unit tests. A test whose result depends on live model output is not
+a unit test. Where model behaviour genuinely matters, assert on structure (a node ID was
+returned, a stance is one of three values), not on generated prose.
+
+## Commands
+
+```bash
+uv run pytest                  # full suite
+uv run pytest tests/test_x.py  # single file
+uv run ruff check .            # lint
+uv run ruff format --check .   # format
+```
+
+Both `pytest` and `ruff check` must pass before any PR.

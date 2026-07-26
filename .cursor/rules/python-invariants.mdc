@@ -1,0 +1,76 @@
+---
+description: Non-negotiable architectural invariants for all Python source
+globs: src/**/*.py
+alwaysApply: false
+---
+
+# Hard invariants — enforced by tests that fail the build
+
+Do not work around these. If a change appears to require breaking one, stop and raise it.
+
+## 1. Retrieval is vectorless
+
+No embeddings, no vector similarity, no `pgvector`, no reranker models, no
+`sentence-transformers`. Retrieval is LLM reasoning over document trees built from GROBID's
+TEI section hierarchy:
+
+```
+question → corpus-level shortlist → per-paper tree traversal → selected nodes → answer
+```
+
+If you are reaching for an embedding, the design intends a tree traversal instead.
+
+## 2. Every assertion carries a passage anchor
+
+Never store bare claim text. Every claim, method, result, dataset, and metric row requires a
+non-null `tree_node_id`, and the database enforces it. Records failing validation are
+rejected and logged — never persisted unanchored.
+
+## 3. Two scores, never merged
+
+`confidence` (how well the pipeline read it) and `evidence_quality` (how good the science is)
+are separate columns, separately computed, separately displayed. Never average, multiply,
+blend, or surface them as a single number under any name.
+
+An AST-level test scans for arithmetic combining both fields and fails the build.
+
+- **confidence inputs:** supporting node count, verbatim overlap, self-consistency,
+  retrieval `stopped_reason`, validation cleanliness
+- **evidence_quality inputs:** full-text vs abstract-only, peer-reviewed vs preprint, direct
+  vs inferred, table/figure-backed vs narrative, recency, replication count
+
+Never mix an input from one list into the other.
+
+## 4. Evidence and discourse are separate channels
+
+`scoring/` must not import anything from `discourse/`. No Reddit score, Hacker News points,
+or SciRate scite count may reach any claim score. Community attention measures interest, not
+validity. An import-boundary test enforces this.
+
+`EvidenceSource` and `DiscourseSource` are distinct protocols sharing no base class, with
+separate registries. Do not unify them.
+
+## 5. One model-call boundary
+
+Only `ai_researcher/llm/gateway.py` may import `litellm` or any provider SDK. A test greps
+the package and fails otherwise. Model names come from config by job type — never a string
+literal at a call site.
+
+## 6. Sources are plugins
+
+Adding a source means one adapter file implementing the protocol plus one registration line.
+Never edit the pipeline to accommodate a source. Adapters never touch the database and never
+call an LLM — they return plain dataclasses.
+
+## 7. One store
+
+PostgreSQL, plain. No Neo4j, no DuckDB, no second database, no vector extension.
+
+## Operational conventions
+
+- **Failures are recorded, not raised.** One paper failing to parse, download, or extract is
+  logged against that paper; the run continues to completion.
+- **Everything is resumable and idempotent.** Re-running ingest, index, extract, or sweep
+  with no new input does zero work and exits 0.
+- **Secrets from environment or gitignored `.env` only.** Never hardcoded, never committed.
+- **CLI and MCP contain no business logic.** Both call the same core functions.
