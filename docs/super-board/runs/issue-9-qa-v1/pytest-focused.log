@@ -1,0 +1,16 @@
+=== AC5 focused suite ===
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-9-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-9-qa
+configfile: pyproject.toml
+collecting ... collected 5 items
+
+tests/test_parse.py::test_tei_fixture_produces_expected_nested_section_titles_in_order PASSED [ 20%]
+tests/test_parse.py::test_parse_pdf_stores_tei_and_sections_from_grobid PASSED [ 40%]
+tests/test_parse.py::test_grobid_failure_is_recorded_without_raising PASSED [ 60%]
+tests/test_parse.py::test_missing_pdf_is_recorded_as_failure_without_raising PASSED [ 80%]
+tests/test_parse.py::test_live_grobid_process_fulltext_when_reachable PASSED [100%]
+
+============================== 5 passed in 1.05s ===============================
+FOCUSED_EXIT=

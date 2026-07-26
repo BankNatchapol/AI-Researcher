@@ -1,0 +1,4 @@
+=== Ruff ===
+[1;32mAll checks passed![0m
+50 files already formatted
+RUFF_EXIT= FORMAT_EXIT=
