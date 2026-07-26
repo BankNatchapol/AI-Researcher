@@ -41,5 +41,9 @@
     "channel": "none",
     "chat_id": null,
     "bot_identity": "BankNatchapol"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
   }
 }

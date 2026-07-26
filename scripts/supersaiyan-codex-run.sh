@@ -44,8 +44,14 @@ set -euo pipefail
 # ── Codex configuration ────────────────────────────────────────────────────
 CODEX_SANDBOX="${CODEX_SANDBOX:-workspace-write}"
 CODEX_SKILLS_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
-CODEX_MODEL="${CODEX_MODEL:-}"
 CODEX_WORKER_LOG_DIR="${CODEX_WORKER_LOG_DIR:-.claude/supersaiyan/codex-logs}"
+
+# Model and reasoning depth. Both read from the board config when present, so a
+# run is reproducible from the config alone; env vars override for one-off runs.
+#   codex.model             e.g. gpt-5.6-sol
+#   codex.reasoning_effort  low | medium | high | xhigh | max | ultra
+CODEX_MODEL="${CODEX_MODEL:-}"
+CODEX_REASONING_EFFORT="${CODEX_REASONING_EFFORT:-}"
 
 codex_flags() {
   # Assemble codex exec flags. Emitted one per line so callers can read into an array.
@@ -55,6 +61,7 @@ codex_flags() {
     printf '%s\n' "-c" "sandbox_workspace_write.network_access=true"
   fi
   [ -n "$CODEX_MODEL" ] && printf '%s\n' "--model" "$CODEX_MODEL"
+  [ -n "$CODEX_REASONING_EFFORT" ] && printf '%s\n' "-c" "model_reasoning_effort=\"${CODEX_REASONING_EFFORT}\""
   return 0
 }
 
@@ -87,6 +94,17 @@ TICK_SECONDS=$(jq -r '.tick_seconds // 120' "$CONFIG_PATH")
 MAX_WORKERS=$(jq -r '.max_workers // 3' "$CONFIG_PATH")
 BOT_LOGIN=$(jq -r '.notifications.bot_identity // .bot_identity // ""' "$CONFIG_PATH")
 WORKER_BACKEND=$(jq -r '.worker_backend // "workflow"' "$CONFIG_PATH")
+
+# Board config supplies model + reasoning effort unless already set in the env.
+[ -z "$CODEX_MODEL" ] && CODEX_MODEL=$(jq -r '.codex.model // ""' "$CONFIG_PATH")
+[ -z "$CODEX_REASONING_EFFORT" ] && CODEX_REASONING_EFFORT=$(jq -r '.codex.reasoning_effort // ""' "$CONFIG_PATH")
+
+case "${CODEX_REASONING_EFFORT:-}" in
+  ""|low|medium|high|xhigh|max|ultra) ;;
+  *) echo "🛑 invalid reasoning effort '${CODEX_REASONING_EFFORT}'." >&2
+     echo "    Valid for gpt-5.6-sol: low medium high xhigh max ultra" >&2
+     exit 64 ;;
+esac
 
 # Patched from upstream: this fork dispatches codex, so it opts in on
 # `codex-exec` rather than `claude-p`. The config must say so explicitly — a
@@ -341,7 +359,8 @@ reap_finished_locks() {
 
 # ───────────────────────────── preconditions ─────────────────────────────
 log "supersaiyan codex run started — config=${CONFIG_SLUG} variant=${VARIANT} base=${BASE_BRANCH} tick=${TICK_SECONDS}s max_workers=${MAX_WORKERS}"
-log "codex: sandbox=${CODEX_SANDBOX} skills=${CODEX_SKILLS_DIR} model=${CODEX_MODEL:-<config default>}"
+log "codex: sandbox=${CODEX_SANDBOX} skills=${CODEX_SKILLS_DIR}"
+log "codex: model=${CODEX_MODEL:-<codex default>} reasoning=${CODEX_REASONING_EFFORT:-<model default>}"
 
 if [ "$CODEX_SANDBOX" = "workspace-write" ] && [ "$(uname -s)" = "Darwin" ]; then
   log "⚠ macOS + workspace-write: the seatbelt sandbox may ignore network_access and block"
