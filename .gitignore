@@ -1,1 +1,5 @@
 .claude/supersaiyan/active
+
+# Codex worker logs
+.claude/supersaiyan/codex-logs/
+.worktrees/
