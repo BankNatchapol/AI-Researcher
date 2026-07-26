@@ -3,3 +3,4 @@
 # Codex worker logs
 .claude/supersaiyan/codex-logs/
 .worktrees/
+nohup.out
