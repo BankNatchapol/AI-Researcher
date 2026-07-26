@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt>
+        <title level="a" type="main">Surface Code Threshold Estimates for Near-Term Devices</title>
+      </titleStmt>
+      <sourceDesc>
+        <biblStruct>
+          <analytic>
+            <title level="a" type="main">Surface Code Threshold Estimates for Near-Term Devices</title>
+            <author>
+              <persName><forename type="first">Ada</forename><surname>Lovelace</surname></persName>
+            </author>
+          </analytic>
+          <monogr>
+            <idno type="arXiv">arxiv:2401.00001</idno>
+          </monogr>
+        </biblStruct>
+      </sourceDesc>
+    </fileDesc>
+    <profileDesc>
+      <abstract>
+        <p>We estimate surface-code thresholds under realistic noise.</p>
+      </abstract>
+    </profileDesc>
+  </teiHeader>
+  <text xml:lang="en">
+    <body>
+      <div xmlns="http://www.tei-c.org/ns/1.0">
+        <head>Introduction</head>
+        <p coords="1,72.0,100.0,400.0,12.0">Fault-tolerant quantum computing relies on error-correcting codes.</p>
+        <p coords="1,72.0,120.0,400.0,12.0">The surface code remains a leading candidate for near-term devices.</p>
+      </div>
+      <div xmlns="http://www.tei-c.org/ns/1.0">
+        <head>Methods</head>
+        <p coords="2,72.0,80.0,400.0,12.0">We simulate a distance-d surface code under depolarizing noise.</p>
+        <div xmlns="http://www.tei-c.org/ns/1.0">
+          <head>Noise model</head>
+          <p coords="2,72.0,140.0,400.0,12.0">Independent X and Z errors are applied after each gate.</p>
+        </div>
+        <div xmlns="http://www.tei-c.org/ns/1.0">
+          <head>Decoder</head>
+          <p coords="3,72.0,90.0,400.0,12.0">Minimum-weight perfect matching decodes the syndrome.</p>
+        </div>
+      </div>
+      <div xmlns="http://www.tei-c.org/ns/1.0">
+        <head>Results</head>
+        <p coords="4,72.0,100.0,400.0,12.0">Threshold behaviour appears near one percent physical error rate.</p>
+        <div xmlns="http://www.tei-c.org/ns/1.0">
+          <head>Threshold estimates</head>
+          <p coords="4,72.0,160.0,400.0,12.0">The extrapolated threshold is 1.1 percent under our noise model.</p>
+          <div xmlns="http://www.tei-c.org/ns/1.0">
+            <p coords="5,72.0,80.0,400.0,12.0">Supplemental curves for distance five through eleven are included.</p>
+          </div>
+        </div>
+      </div>
+      <div xmlns="http://www.tei-c.org/ns/1.0">
+        <head>Conclusion</head>
+        <p coords="6,72.0,100.0,400.0,12.0">Near-term devices can approach the surface-code threshold.</p>
+      </div>
+    </body>
+  </text>
+</TEI>
