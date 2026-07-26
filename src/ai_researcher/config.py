@@ -3,6 +3,7 @@
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from types import MappingProxyType
 
 
@@ -26,6 +27,7 @@ class Settings:
     llm_max_concurrency: int
     contact_email: str
     source_min_intervals: Mapping[str, float]
+    storage_dir: Path
 
 
 def _required_environment_variable(name: str) -> str:
@@ -108,4 +110,5 @@ def get_settings() -> Settings:
         ),
         contact_email=_required_environment_variable("CONTACT_EMAIL"),
         source_min_intervals=_source_min_intervals(),
+        storage_dir=Path(os.environ.get("STORAGE_DIR", "data/papers")),
     )

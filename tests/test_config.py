@@ -2,6 +2,7 @@
 
 import importlib
 import importlib.util
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -39,3 +40,15 @@ def test_missing_required_variable_raises_named_error(
 
     with pytest.raises(config.MissingConfigurationError, match="DATABASE_URL"):
         config.get_settings()
+
+
+def test_settings_read_pdf_storage_directory_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_required_environment(monkeypatch)
+    monkeypatch.setenv("STORAGE_DIR", "/tmp/ai-researcher-papers")
+    config = _load_config_module()
+
+    settings = config.get_settings()
+
+    assert settings.storage_dir == Path("/tmp/ai-researcher-papers")
