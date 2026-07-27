@@ -154,30 +154,78 @@ def test_goldset_fails_loudly_when_a_path_matches_no_known_section(
 
 def test_harness_runs_end_to_end_offline_and_appends_comparable_backend_runs(
     fixture_corpus: dict,
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     from ai_researcher.eval.harness import run_evaluation
+    from ai_researcher.retrieval import (
+        PageIndexShortlist,
+        PostgresFTSShortlist,
+        shortlist,
+    )
 
     core = FixtureResearchCore(fixture_corpus)
+    backend_calls: list[str] = []
+
+    def pageindex_shortlist(
+        self: PageIndexShortlist,
+        scope: str,
+        question: str,
+        limit: int,
+    ) -> list[int]:
+        del self, scope, question, limit
+        backend_calls.append("pageindex")
+        return [101, 202]
+
+    def postgres_fts_shortlist(
+        self: PostgresFTSShortlist,
+        scope: str,
+        question: str,
+        limit: int,
+    ) -> list[int]:
+        del self, scope, question, limit
+        backend_calls.append("postgres_fts")
+        return [101, 202]
+
+    monkeypatch.setattr(PageIndexShortlist, "shortlist", pageindex_shortlist)
+    monkeypatch.setattr(PostgresFTSShortlist, "shortlist", postgres_fts_shortlist)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/research")
+    monkeypatch.setenv("GROBID_URL", "http://localhost:8070")
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "codex")
+    monkeypatch.setenv("CONTACT_EMAIL", "researcher@example.com")
+
+    def traverse_with_configured_backend(
+        question: str,
+        scope: str,
+        max_nodes: int | None = None,
+    ) -> TraversalResult:
+        candidate_paper_ids = shortlist(scope, question, limit=20)
+        result = core.traverse(question, scope, max_nodes)
+        assert {node.paper_id for node in result.ranked_nodes} <= set(candidate_paper_ids)
+        return result
+
     fixed_time = datetime(2026, 7, 27, 8, 30, tzinfo=UTC)
     common = {
         "scope": "fixture-eval",
         "goldset_path": FIXTURE_DIR / "goldset.yaml",
         "report_dir": tmp_path,
         "k": 1,
-        "traverse_fn": core.traverse,
+        "traverse_fn": traverse_with_configured_backend,
         "synthesize_fn": core.synthesize,
         "section_catalog": FixtureSectionCatalog(fixture_corpus),
         "now": fixed_time,
     }
 
-    pageindex = run_evaluation(shortlist_backend="pageindex", **common)
-    postgres = run_evaluation(shortlist_backend="postgres_fts", **common)
+    monkeypatch.setenv("SHORTLIST_BACKEND", "pageindex")
+    pageindex = run_evaluation(**common)
+    monkeypatch.setenv("SHORTLIST_BACKEND", "postgres_fts")
+    postgres = run_evaluation(**common)
 
     assert pageindex.metrics.recall_at_k == pytest.approx(0.5)
     assert pageindex.metrics.citation_precision == pytest.approx(0.5)
     assert pageindex.metrics.unsupported_statement_rate == pytest.approx(1 / 3)
     assert postgres.metrics == pageindex.metrics
+    assert backend_calls == ["pageindex", "pageindex", "postgres_fts", "postgres_fts"]
     assert pageindex.report_path == tmp_path / "eval-2026-07-27.json"
     report = json.loads(pageindex.report_path.read_text())
     assert [run["shortlist_backend"] for run in report["runs"]] == [
