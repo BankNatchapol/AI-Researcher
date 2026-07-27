@@ -10,3 +10,4 @@ run.log
 .env
 .venv/
 __pycache__/
+data/papers/
