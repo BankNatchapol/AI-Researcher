@@ -156,6 +156,43 @@ def index_scope(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None:
     )
 
 
+@app.command("ask")
+def ask_corpus(
+    question: str = typer.Argument(..., metavar="QUESTION"),
+    scope: str = typer.Option(..., "--scope", help="Saved scope to search."),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Print every expanded node and the traversal stopping reason.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit one machine-readable JSON document on stdout.",
+    ),
+    max_nodes: int | None = typer.Option(
+        None,
+        "--max-nodes",
+        min=1,
+        help="Override the traversal node-expansion budget.",
+    ),
+) -> None:
+    """Answer a question from grounded evidence in a saved scope."""
+
+    from ai_researcher.answer import synthesize
+    from ai_researcher.answer.render import render_answer, render_answer_json
+    from ai_researcher.retrieval import traverse
+
+    traversal_result = traverse(question, scope, max_nodes=max_nodes)
+    answer = synthesize(question, traversal_result)
+    output = (
+        render_answer_json(answer, traversal_result.trace)
+        if json_output
+        else render_answer(answer, traversal_result.trace, verbose=verbose)
+    )
+    typer.echo(output)
+
+
 @app.command("status")
 def corpus_status(
     scope: str | None = typer.Option(
