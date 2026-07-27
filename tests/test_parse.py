@@ -107,6 +107,29 @@ def test_tei_fixture_produces_expected_nested_section_titles_in_order() -> None:
     assert noise_model.char_end == len(noise_model.body_text)
 
 
+def test_tei_page_range_uses_every_coordinate_group_in_a_paragraph() -> None:
+    tei = _tei_module()
+    tei_xml = """
+    <TEI xmlns="http://www.tei-c.org/ns/1.0">
+      <text>
+        <body>
+          <div>
+            <head>Cross-page result</head>
+            <p coords="4,72,700,400,12;5,72,80,400,12">
+              This paragraph continues onto the next page.
+            </p>
+          </div>
+        </body>
+      </text>
+    </TEI>
+    """
+
+    section = tei.tei_to_sections(tei_xml)[0]
+
+    assert section.page_start == 4
+    assert section.page_end == 5
+
+
 def test_parse_pdf_stores_tei_and_sections_from_grobid(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
