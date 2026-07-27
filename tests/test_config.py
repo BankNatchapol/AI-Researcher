@@ -52,3 +52,16 @@ def test_settings_read_pdf_storage_directory_from_environment(
     settings = config.get_settings()
 
     assert settings.storage_dir == Path("/tmp/ai-researcher-papers")
+
+
+def test_shortlist_backend_defaults_to_pageindex_and_reads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_required_environment(monkeypatch)
+    config = _load_config_module()
+
+    monkeypatch.delenv("SHORTLIST_BACKEND", raising=False)
+    assert config.get_settings().shortlist_backend == "pageindex"
+
+    monkeypatch.setenv("SHORTLIST_BACKEND", "postgres_fts")
+    assert config.get_settings().shortlist_backend == "postgres_fts"
