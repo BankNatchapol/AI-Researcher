@@ -28,6 +28,7 @@ class Settings:
     contact_email: str
     source_min_intervals: Mapping[str, float]
     storage_dir: Path
+    shortlist_backend: str
 
 
 def _required_environment_variable(name: str) -> str:
@@ -111,4 +112,5 @@ def get_settings() -> Settings:
         contact_email=_required_environment_variable("CONTACT_EMAIL"),
         source_min_intervals=_source_min_intervals(),
         storage_dir=Path(os.environ.get("STORAGE_DIR", "data/papers")),
+        shortlist_backend=os.environ.get("SHORTLIST_BACKEND", "pageindex"),
     )
