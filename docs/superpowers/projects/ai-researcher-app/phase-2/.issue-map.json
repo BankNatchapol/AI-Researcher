@@ -1,0 +1,42 @@
+{
+  "01-tree-schema": {
+    "number": 26,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/26",
+    "order": 1
+  },
+  "02-tree-builder": {
+    "number": 27,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/27",
+    "order": 2
+  },
+  "03-shortlist-protocol": {
+    "number": 28,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/28",
+    "order": 3
+  },
+  "04-budgeted-traversal": {
+    "number": 29,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/29",
+    "order": 4
+  },
+  "05-answer-synthesis": {
+    "number": 30,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/30",
+    "order": 5
+  },
+  "06-ask-cli": {
+    "number": 31,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/31",
+    "order": 6
+  },
+  "07-mcp-server": {
+    "number": 32,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/32",
+    "order": 7
+  },
+  "08-goldset-and-eval": {
+    "number": 33,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/33",
+    "order": 8
+  }
+}
