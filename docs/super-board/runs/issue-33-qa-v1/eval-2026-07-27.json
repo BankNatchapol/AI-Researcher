@@ -1,0 +1,105 @@
+{
+  "report_date": "2026-07-27",
+  "runs": [
+    {
+      "generated_at": "2026-07-27T10:30:00+00:00",
+      "scope": "fixture-eval",
+      "shortlist_backend": "pageindex",
+      "k": 1,
+      "question_count": 2,
+      "metrics": {
+        "recall_at_k": 0.5,
+        "citation_precision": 0.5,
+        "unsupported_statement_rate": 0.3333333333333333
+      },
+      "questions": [
+        {
+          "question": "What threshold is reported for the surface code?",
+          "gold_section_paths": [
+            "Results/Threshold"
+          ],
+          "retrieved_section_paths": [
+            "Results/Threshold"
+          ],
+          "cited_section_paths": [
+            "Results/Threshold"
+          ],
+          "gold_sections_retrieved": 1,
+          "gold_sections_total": 1,
+          "gold_citations": 1,
+          "citations_total": 1,
+          "unsupported_statements": 1,
+          "statements_total": 2
+        },
+        {
+          "question": "Which decoder is used for error correction?",
+          "gold_section_paths": [
+            "Methods/Decoder"
+          ],
+          "retrieved_section_paths": [
+            "Discussion/Limitations"
+          ],
+          "cited_section_paths": [
+            "Discussion/Limitations"
+          ],
+          "gold_sections_retrieved": 0,
+          "gold_sections_total": 1,
+          "gold_citations": 0,
+          "citations_total": 1,
+          "unsupported_statements": 0,
+          "statements_total": 1
+        }
+      ]
+    },
+    {
+      "generated_at": "2026-07-27T10:30:00+00:00",
+      "scope": "fixture-eval",
+      "shortlist_backend": "postgres_fts",
+      "k": 1,
+      "question_count": 2,
+      "metrics": {
+        "recall_at_k": 0.5,
+        "citation_precision": 0.5,
+        "unsupported_statement_rate": 0.3333333333333333
+      },
+      "questions": [
+        {
+          "question": "What threshold is reported for the surface code?",
+          "gold_section_paths": [
+            "Results/Threshold"
+          ],
+          "retrieved_section_paths": [
+            "Results/Threshold"
+          ],
+          "cited_section_paths": [
+            "Results/Threshold"
+          ],
+          "gold_sections_retrieved": 1,
+          "gold_sections_total": 1,
+          "gold_citations": 1,
+          "citations_total": 1,
+          "unsupported_statements": 1,
+          "statements_total": 2
+        },
+        {
+          "question": "Which decoder is used for error correction?",
+          "gold_section_paths": [
+            "Methods/Decoder"
+          ],
+          "retrieved_section_paths": [
+            "Discussion/Limitations"
+          ],
+          "cited_section_paths": [
+            "Discussion/Limitations"
+          ],
+          "gold_sections_retrieved": 0,
+          "gold_sections_total": 1,
+          "gold_citations": 0,
+          "citations_total": 1,
+          "unsupported_statements": 0,
+          "statements_total": 1
+        }
+      ]
+    }
+  ]
+}
