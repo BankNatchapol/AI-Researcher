@@ -156,6 +156,32 @@ def index_scope(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None:
     )
 
 
+@app.command("extract")
+def extract_corpus(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None:
+    """Extract claims, methods, results, datasets, and metrics for a saved scope."""
+
+    from ai_researcher.extraction import pipeline
+
+    try:
+        result = pipeline.extract_scope(scope_name)
+    except pipeline.UnknownScopeError as error:
+        raise typer.BadParameter(str(error)) from error
+
+    for paper_result in result.papers:
+        if paper_result.skipped or paper_result.failed:
+            continue
+        typer.echo(
+            f"paper {paper_result.paper_id}: "
+            f"claims={paper_result.claims} methods={paper_result.methods} "
+            f"results={paper_result.results} datasets={paper_result.datasets} "
+            f"metrics={paper_result.metrics}"
+        )
+    typer.echo(
+        f"Extract complete: extracted {result.extracted}, "
+        f"skipped {result.skipped}, failed {result.failed}."
+    )
+
+
 @app.command("ask")
 def ask_corpus(
     question: str = typer.Argument(..., metavar="QUESTION"),
