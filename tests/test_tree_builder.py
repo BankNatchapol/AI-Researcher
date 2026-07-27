@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, insert, select
+from sqlalchemy import create_engine, insert, select, update
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from typer.testing import CliRunner
@@ -341,6 +341,45 @@ def test_index_cli_builds_and_then_skips_current_per_paper_trees(
     abstract_row = next(row for row in rows if row["paper_id"] == abstract_id)
     assert abstract_row["title"] == "Abstract"
     assert abstract_row["node_path"] == "Abstract"
+
+
+def test_index_rebuilds_only_the_paper_with_a_stale_tree_version(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.llm import gateway
+
+    parsed_id, _ = _seed_scope_with_parsed_and_abstract_papers(isolated_database)
+    calls: list[list[int]] = []
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        assert job == "node_summary"
+        payload = json.loads(messages[-1]["content"])
+        section_ids = [item["section_id"] for item in payload["sections"]]
+        calls.append(section_ids)
+        return _summary_response(section_ids)
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    runner = CliRunner()
+
+    first = runner.invoke(app, ["index", "surface-codes"])
+    with isolated_database.begin() as connection:
+        connection.execute(
+            update(tree_node)
+            .where(tree_node.c.paper_id == parsed_id)
+            .values(tree_schema_version="stale-schema")
+        )
+    second = runner.invoke(app, ["index", "surface-codes"])
+
+    assert first.exit_code == 0, first.output
+    assert "built 2" in first.stdout
+    assert second.exit_code == 0, second.output
+    assert "built 1" in second.stdout
+    assert "skipped 1" in second.stdout
+    assert "failed 0" in second.stdout
+    assert len(calls) == 3
+    assert len(calls[-1]) == 2
 
 
 def test_index_continues_after_one_paper_summary_failure(
