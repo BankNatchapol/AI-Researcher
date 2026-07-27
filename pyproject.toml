@@ -9,9 +9,11 @@ description = "A local-first research engine for quantum computing and AI litera
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "mcp>=1.27,<2",
     "pg8000>=1.31,<2",
     "sqlalchemy>=2.0,<3",
     "typer>=0.16,<1",
+    "typing-extensions>=4.15,<5",
 ]
 
 [project.scripts]

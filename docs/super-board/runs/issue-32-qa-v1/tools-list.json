@@ -1,0 +1,22 @@
+{
+  "protocol_version": "2025-11-25",
+  "server_name": "AI-Researcher",
+  "tools": [
+    {
+      "name": "list_scopes",
+      "output_type": "object"
+    },
+    {
+      "name": "scope_status",
+      "output_type": "object"
+    },
+    {
+      "name": "ask_corpus",
+      "output_type": "object"
+    },
+    {
+      "name": "get_paper_sections",
+      "output_type": "object"
+    }
+  ]
+}
