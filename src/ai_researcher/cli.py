@@ -193,6 +193,15 @@ def ask_corpus(
     typer.echo(output)
 
 
+@app.command("mcp")
+def serve_mcp() -> None:
+    """Serve the read-only research tools over MCP stdio."""
+
+    from ai_researcher.mcp import run
+
+    run()
+
+
 @app.command("status")
 def corpus_status(
     scope: str | None = typer.Option(
