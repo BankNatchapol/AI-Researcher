@@ -1,14 +1,16 @@
-"""SQLAlchemy Core definitions for the Phase 1 PostgreSQL tables."""
+"""SQLAlchemy Core definitions for the PostgreSQL schema."""
 
 from sqlalchemy import (
     ARRAY,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
     ForeignKey,
     Identity,
+    Index,
     Integer,
     MetaData,
     Table,
@@ -193,6 +195,86 @@ ingest_job = Table(
     Column("error", Text),
 )
 
+tree_node = Table(
+    "tree_node",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "section_id",
+        BigInteger,
+        ForeignKey("section.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "parent_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+    ),
+    Column("node_path", Text, nullable=False),
+    Column("title", Text),
+    Column("summary", Text, nullable=False),
+    Column("page_start", Integer),
+    Column("page_end", Integer),
+    Column("depth", Integer, nullable=False),
+    Column("tree_schema_version", Text, nullable=False),
+    Column("summary_model", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+Index(
+    "ix_tree_node_staleness",
+    tree_node.c.paper_id,
+    tree_node.c.tree_schema_version,
+    tree_node.c.summary_model,
+)
+
+retrieval_trace = Table(
+    "retrieval_trace",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("question", Text, nullable=False),
+    Column(
+        "scope_id",
+        BigInteger,
+        ForeignKey("scope.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "expanded_node_ids",
+        ARRAY(BigInteger),
+        nullable=False,
+        server_default=text("'{}'"),
+    ),
+    Column(
+        "selected_node_ids",
+        ARRAY(BigInteger),
+        nullable=False,
+        server_default=text("'{}'"),
+    ),
+    Column("nodes_expanded", Integer, nullable=False),
+    Column("stopped_reason", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+    CheckConstraint(
+        "stopped_reason IN ('sufficient_evidence', 'budget_exhausted', 'no_candidates')",
+        name="ck_retrieval_trace_stopped_reason",
+    ),
+)
+
 __all__ = [
     "ingest_job",
     "metadata",
@@ -200,8 +282,10 @@ __all__ = [
     "paper_author",
     "paper_scope",
     "paper_source",
+    "retrieval_trace",
     "schema_migration",
     "scope",
     "section",
     "source",
+    "tree_node",
 ]

@@ -1,4 +1,4 @@
-"""Integration tests for the PostgreSQL migration runner and Phase 1 schema."""
+"""Integration tests for the PostgreSQL migration runner and schema."""
 
 import os
 import uuid
@@ -76,6 +76,31 @@ EXPECTED_COLUMNS = {
         "finished_at",
         "error",
     },
+    "tree_node": {
+        "id",
+        "paper_id",
+        "section_id",
+        "parent_id",
+        "node_path",
+        "title",
+        "summary",
+        "page_start",
+        "page_end",
+        "depth",
+        "tree_schema_version",
+        "summary_model",
+        "created_at",
+    },
+    "retrieval_trace": {
+        "id",
+        "question",
+        "scope_id",
+        "expanded_node_ids",
+        "selected_node_ids",
+        "nodes_expanded",
+        "stopped_reason",
+        "created_at",
+    },
 }
 
 
@@ -133,7 +158,7 @@ def test_db_help_lists_migrate_command() -> None:
     assert "migrate" in result.output
 
 
-def test_models_define_every_phase_one_table() -> None:
+def test_models_define_every_migrated_table() -> None:
     from ai_researcher.db.models import metadata
 
     assert set(metadata.tables) == {"schema_migration", *EXPECTED_COLUMNS}
@@ -152,6 +177,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert first_run.exit_code == 0, first_run.output
     assert "Applied migration 0001_initial" in first_run.output
     assert "Applied migration 0002_paper_parse_error" in first_run.output
+    assert "Applied migration 0003_trees" in first_run.output
     assert second_run.exit_code == 0, second_run.output
     assert "already up to date" in second_run.output
 
@@ -180,11 +206,13 @@ def test_cli_applies_all_migrations_and_is_idempotent(
         actual_columns.setdefault(table_name, set()).add(column_name)
     for table_name, expected in EXPECTED_COLUMNS.items():
         assert actual_columns[table_name] == expected
-    assert len(applied) == 2
+    assert len(applied) == 3
     assert applied[0][0:2] == (1, "0001_initial")
     assert applied[1][0:2] == (2, "0002_paper_parse_error")
+    assert applied[2][0:2] == (3, "0003_trees")
     assert applied[0][2] is not None
     assert applied[1][2] is not None
+    assert applied[2][2] is not None
 
 
 @pytest.mark.parametrize("identifier", ["doi", "arxiv_id"])
