@@ -1,0 +1,30 @@
+=== AC1 migrate first ===
+exit 0
+Applied migration 0001_initial.
+Applied migration 0002_paper_parse_error.
+Applied migration 0003_trees.
+Applied migration 0004_fts_index.
+Applied migration 0005_extraction.
+
+=== AC1 migrate second ===
+exit 0
+Database already up to date.
+
+=== AC2 tables + nullable tree_node_id / paper_id ===
+claim cols= ['canonical_claim_id', 'claim_text', 'claim_type', 'created_at', 'extraction_model', 'id', 'normalized_text', 'object_value', 'paper_id', 'predicate', 'prompt_version', 'subject', 'tree_node_id', 'unit'] paper_nullable= False tree_nullable= False
+  fks= [(['canonical_claim_id'], 'claim', ['id']), (['paper_id'], 'paper', ['id']), (['tree_node_id'], 'tree_node', ['id'])]
+method cols= ['created_at', 'extraction_model', 'id', 'method_text', 'paper_id', 'prompt_version', 'tree_node_id'] paper_nullable= False tree_nullable= False
+  fks= [(['paper_id'], 'paper', ['id']), (['tree_node_id'], 'tree_node', ['id'])]
+result cols= ['created_at', 'extraction_model', 'id', 'paper_id', 'prompt_version', 'result_text', 'tree_node_id'] paper_nullable= False tree_nullable= False
+  fks= [(['paper_id'], 'paper', ['id']), (['tree_node_id'], 'tree_node', ['id'])]
+dataset cols= ['created_at', 'dataset_name', 'description', 'extraction_model', 'id', 'paper_id', 'prompt_version', 'tree_node_id'] paper_nullable= False tree_nullable= False
+  fks= [(['paper_id'], 'paper', ['id']), (['tree_node_id'], 'tree_node', ['id'])]
+metric cols= ['created_at', 'extraction_model', 'id', 'metric_name', 'object_value', 'paper_id', 'prompt_version', 'tree_node_id', 'unit'] paper_nullable= False tree_nullable= False
+  fks= [(['paper_id'], 'paper', ['id']), (['tree_node_id'], 'tree_node', ['id'])]
+=== AC3 claim_evidence ===
+cols= ['claim_id', 'created_at', 'id', 'paper_id', 'rationale_text', 'stance', 'tree_node_id']
+check_constraints= [('ck_claim_evidence_stance', "CHECK ((stance = ANY (ARRAY['supports'::text, 'refutes'::text, 'mentions'::text])))")]
+=== AC4 claim_score ===
+{'confidence': {'nullable': False}, 'evidence_quality': {'nullable': False}, 'rubric_version': {'nullable': False}, 'scored_at': {'nullable': False}}
+has_combined= False
+PROBE_OK

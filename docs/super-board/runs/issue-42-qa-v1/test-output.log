@@ -1,0 +1,63 @@
+=== AC1: migrate (first run against isolated check via pytest; also CLI migrate on main DB) ===
+--- note: AC1 verified primarily by tests/test_extraction_schema.py which asserts first apply + already up to date ---
+
+=== AC5 + AC2/AC3/AC4 via pytest ===
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-42-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-42-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 2 items
+
+tests/test_extraction_schema.py::test_models_define_extraction_tables PASSED [ 50%]
+tests/test_extraction_schema.py::test_extraction_migration_rejects_null_tree_node_and_invalid_stance PASSED [100%]
+
+============================== 2 passed in 1.19s ===============================
+PYTEST_EXIT=0
+
+=== Full suite ===
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-42-qa
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2
+collected 150 items
+
+tests/sources/test_arxiv.py ....                                         [  2%]
+tests/sources/test_crossref.py .                                         [  3%]
+tests/sources/test_openalex.py ....                                      [  6%]
+tests/sources/test_registry.py .....                                     [  9%]
+tests/sources/test_semantic_scholar.py ....                              [ 12%]
+tests/test_acquire.py .............                                      [ 20%]
+tests/test_ask_cli.py .....                                              [ 24%]
+tests/test_cli_smoke.py .                                                [ 24%]
+tests/test_config.py ....                                                [ 27%]
+tests/test_dedup.py .......                                              [ 32%]
+tests/test_eval_harness.py ....                                          [ 34%]
+tests/test_extraction_schema.py ..                                       [ 36%]
+tests/test_gateway.py ................                                   [ 46%]
+tests/test_ingest_pipeline.py .......                                    [ 51%]
+tests/test_mcp_server.py ......                                          [ 55%]
+tests/test_migrations.py ......                                          [ 59%]
+tests/test_no_direct_model_calls.py .....                                [ 62%]
+tests/test_parse.py ......                                               [ 66%]
+tests/test_scoping.py .......                                            [ 71%]
+tests/test_services_config.py ...                                        [ 73%]
+tests/test_shortlist.py ........                                         [ 78%]
+tests/test_status.py .....                                               [ 82%]
+tests/test_synthesis.py ..........                                       [ 88%]
+tests/test_traversal.py .........                                        [ 94%]
+tests/test_tree_builder.py ......                                        [ 98%]
+tests/test_tree_schema.py ..                                             [100%]
+
+============================= 150 passed in 10.65s =============================
+FULL_PYTEST_EXIT=0
+
+=== Lint ===
+[1;32mAll checks passed![0m
+RUFF_EXIT=0
+
+84 files already formatted
+RUFF_FORMAT_EXIT=0
