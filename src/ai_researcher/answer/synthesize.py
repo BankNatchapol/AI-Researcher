@@ -180,9 +180,11 @@ def _validated_statements(
             raise SynthesisResponseError("Synthesis model returned an invalid statement")
         text = record.get("text")
         node_ids = record.get("node_ids")
+        normalized_text = text.strip() if isinstance(text, str) else ""
         if (
             not isinstance(text, str)
-            or not text.strip()
+            or not normalized_text
+            or len(normalized_text.splitlines()) != 1
             or not isinstance(node_ids, list)
             or not node_ids
             or any(
@@ -193,7 +195,7 @@ def _validated_statements(
             )
         ):
             raise SynthesisResponseError("Every statement must cite only supplied node IDs")
-        statements.append(_Statement(text=text.strip(), node_ids=tuple(dict.fromkeys(node_ids))))
+        statements.append(_Statement(text=normalized_text, node_ids=tuple(dict.fromkeys(node_ids))))
     if not statements:
         raise SynthesisResponseError("Synthesis model returned no statements")
     return tuple(statements)

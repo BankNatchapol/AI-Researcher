@@ -119,6 +119,53 @@ def test_synthesis_attributes_every_statement_to_supplied_nodes() -> None:
     assert model_calls[0]["allowed_node_ids"] == [11, 22]
 
 
+def test_newline_containing_statement_is_rejected_and_regenerated() -> None:
+    answer = _answer_module()
+    nodes = (
+        _node(11, paper_id=101, section_path="Results", page_start=4, page_end=5),
+        _node(22, paper_id=202, section_path="Discussion", page_start=8, page_end=8),
+    )
+    responses = iter(
+        [
+            {
+                "statements": [
+                    {
+                        "text": "First factual statement.\nSecond factual statement.",
+                        "node_ids": [11],
+                    }
+                ]
+            },
+            {"statements": [{"text": "Regenerated factual statement.", "node_ids": [11]}]},
+        ]
+    )
+    attempts = 0
+
+    def fake_complete(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal attempts
+        attempts += 1
+        return next(responses)
+
+    result = answer.synthesize(
+        "What is supported?",
+        _traversal(*nodes),
+        complete_fn=fake_complete,
+        citation_fn=lambda node: answer.Citation(
+            node_id=node.node_id,
+            paper_id=node.paper_id,
+            paper_title="Paper",
+            section_path=node.section_path,
+            page_start=node.page_start,
+            page_end=node.page_end,
+            identifier_type="doi",
+            identifier="10.1000/paper",
+        ),
+    )
+
+    assert attempts == 2
+    assert result.answer_text == "Regenerated factual statement. [node 11]"
+    assert all("[node" in statement for statement in result.answer_text.splitlines())
+
+
 def test_citation_renders_paper_section_pages_and_identifier() -> None:
     answer = _answer_module()
     node = _node(
