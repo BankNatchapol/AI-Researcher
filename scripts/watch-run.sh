@@ -20,8 +20,17 @@ SLUG="${1:-}"
 case "$SLUG" in once|follow) SLUG="" ;; esac
 [ -z "$SLUG" ] && SLUG=$(cat .claude/supersaiyan/active 2>/dev/null || echo ai-researcher)
 
-LOGS=.claude/supersaiyan/codex-logs
-REFRESH="${REFRESH:-15}"
+CONFIG=".claude/supersaiyan/configs/${SLUG}.json"
+BACKEND=$(jq -r '.worker_backend // "workflow"' "$CONFIG" 2>/dev/null || echo workflow)
+case "$BACKEND" in
+  cursor-agent) LOGS=.claude/supersaiyan/cursor-logs ;;
+  *)            LOGS=.claude/supersaiyan/codex-logs ;;
+esac
+
+# Rendering queries GitHub Projects v2, so keep the default aligned with the
+# dispatcher's low-frequency poll interval. Override explicitly for short,
+# supervised debugging sessions only.
+REFRESH="${REFRESH:-600}"
 
 # The status renderer ships with the plugin; prefer the installed cache, fall
 # back to the marketplace clone.
@@ -77,12 +86,28 @@ render() {
   # Runtime: what the board cannot tell you.
   echo
   echo "▎Runtime"
-  if pgrep -f 'supersaiyan-codex-run.sh' >/dev/null 2>&1; then
+  echo "   backend: $BACKEND   logs: $LOGS"
+  local disp_running=0 workers=0
+  case "$BACKEND" in
+    cursor-agent)
+      pgrep -f 'supersaiyan-cursor-run\.sh' >/dev/null 2>&1 && disp_running=1
+      workers=$(pgrep -f 'agent -p .*lane worker for SuperSaiyan' 2>/dev/null | wc -l | tr -d ' ')
+      ;;
+    codex-exec)
+      pgrep -f 'supersaiyan-codex-run\.sh' >/dev/null 2>&1 && disp_running=1
+      workers=$(pgrep -f 'codex exec .*lane worker for SuperSaiyan' 2>/dev/null | wc -l | tr -d ' ')
+      ;;
+    *)
+      pgrep -f 'super-board-run\.sh' >/dev/null 2>&1 && disp_running=1
+      workers=$(pgrep -f 'claude -p .*super-board run' 2>/dev/null | wc -l | tr -d ' ')
+      ;;
+  esac
+  if [ "$disp_running" -eq 1 ]; then
     printf '   dispatcher: running'
   else
     printf '   dispatcher: STOPPED'
   fi
-  printf '   workers: %s' "$(pgrep -f 'codex exec .*lane worker for SuperSaiyan' 2>/dev/null | wc -l | tr -d ' ')"
+  printf '   workers: %s' "${workers:-0}"
   local f; f=$(newest_log)
   [ -n "$f" ] && printf '   newest log: %s (%s)' "$(basename "$f")" "$(du -h "$f" 2>/dev/null | cut -f1)"
   echo

@@ -68,10 +68,24 @@ the lowest-numbered unfinished issue in control of the pipeline through Build,
 QA, and Review. It will not start the next Ready issue until that issue reaches
 Done (or Skipped).
 
-For long-running boards, use `tick_seconds: 600` or higher. Lane prompts forbid
-workers from calling the expensive full-board discovery commands; workers
-operate only on their assigned issue and PR and trust successful status
-mutations instead of re-fetching the project.
+Board polling is event-driven, not timer-driven. While any lane has a live
+worker, the dispatcher only checks local process liveness (`kill -0`) every
+`POLL_SECONDS` — zero GitHub calls, so this can be small (default 5) with no
+rate-limit cost. The moment a worker exits, it fetches the board and dispatches
+immediately, instead of waiting for a fixed interval to elapse. Only when every
+lane is idle and nothing was dispatchable does it fall back to a periodic
+`IDLE_RECHECK_SECONDS` (default 60) recheck, since there's no local signal left
+to react to.
+
+This replaces an earlier fixed-tick design. That design once drained GitHub's
+GraphQL quota to zero during a real run, forcing a ~30 minute recovery sleep —
+the event-driven model removes the busy-time polling that caused it, while
+actually reducing dead time between stages (previously bounded by the tick
+interval, now bounded by `POLL_SECONDS`).
+
+Lane prompts forbid workers from calling the expensive full-board discovery
+commands; workers operate only on their assigned issue and PR and trust
+successful status mutations instead of re-fetching the project.
 
 Choose `danger-full-access` deliberately, not by default. It removes the sandbox for every
 worker the loop spawns, and those workers act on GitHub with your credentials.
@@ -84,6 +98,8 @@ worker the loop spawns, and those workers act on GitHub with your credentials.
 | `CODEX_SKILLS_DIR` | `~/.codex/skills` | Where workers read SuperSaiyan skills from |
 | `CODEX_MODEL` | Codex config default | Per-run model override |
 | `CODEX_WORKER_LOG_DIR` | `.claude/supersaiyan/codex-logs` | Per-worker logs and last messages |
+| `poll_seconds` (config) | `5` | Local-only liveness poll interval while a lane is busy — free, no GitHub calls |
+| `idle_recheck_seconds` (config) | `60` | Board recheck interval only when every lane is idle and nothing was dispatchable |
 
 ## What is proven and what is not
 
@@ -102,6 +118,13 @@ from scratch instead of appending, dropping existing rules. `AGENTS.md`'s
 judgment-call phase than Phase 1's mostly-mechanical scaffolding — a passing test suite
 doesn't tell you the retrieval is actually good. Read the eval report, don't just trust the
 green checkmark.
+
+**Not yet proven live:** the event-driven poll/idle-recheck timing above replaced the fixed
+tick this dispatcher used for Phase 1 and Phase 2 — those 19 issues all ran under the old
+timer, not this one. The local liveness-detection mechanism is verified in isolation, and
+both dispatcher scripts pass a structural test asserting the busy-wait path never calls
+`fetch_project_items`, but the *live* dead-time reduction hasn't been observed end to end on
+this dispatcher yet. Watch the first real run's dispatch timestamps.
 
 ## Config split — one file per tool
 

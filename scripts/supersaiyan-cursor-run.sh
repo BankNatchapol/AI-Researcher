@@ -1,67 +1,67 @@
 #!/usr/bin/env bash
-# supersaiyan-codex-run.sh — headless autonomous runner, Codex edition.
+# supersaiyan-cursor-run.sh — headless autonomous runner, Cursor Agent edition.
 #
-# FORK of SuperSaiyan's scripts/super-board-run.sh. Dispatches `codex exec`
-# workers per lane instead of `claude -p`. Everything else — board polling,
-# assignee claiming, inflight locks, zombie watchdog, rate-limit guard — is
-# unchanged from upstream and is tool-agnostic.
+# FORK of SuperSaiyan's scripts/super-board-run.sh (via the Codex fork).
+# Dispatches `agent -p` workers per lane instead of `claude -p` / `codex exec`.
+# Everything else — board polling, assignee claiming, inflight locks, zombie
+# watchdog, rate-limit guard — is unchanged and tool-agnostic.
 #
-# Spawned as `nohup scripts/supersaiyan-codex-run.sh <config-slug> &`.
+# Spawned as `nohup scripts/supersaiyan-cursor-run.sh <config-slug> &`.
 # Pure shell while-loop. Holds NO agent session state — re-reads GitHub only when a lane frees up or the idle recheck fires.
 #
-# ── What was changed from upstream ──────────────────────────────────────────
-#   1. dispatch_lane() calls `codex exec` instead of `claude -p`.
-#   2. Lane prompts point at $CODEX_SKILLS_DIR instead of `.claude/skills/`,
-#      because a Codex worker cannot read Claude Code's skill paths.
-#   3. Orphan detection greps for the codex worker pattern.
-#   4. Sandbox mode is configurable — see CODEX_SANDBOX below.
+# ── What differs from the Codex / Claude runners ────────────────────────────
+#   1. dispatch_lane() calls `agent -p --force --trust` instead of
+#      `codex exec` / `claude -p`.
+#   2. Lane prompts point at $CURSOR_SKILLS_DIR (absolute paths), because the
+#      Cursor CLI does not auto-load Claude Code plugin skills.
+#   3. Orphan detection matches the Cursor worker pattern — and refuses to
+#      start if a Codex or Claude runner is live (assignee-claim races).
+#   4. Auth is subscription-based via `agent login` (local stored credentials).
+#      CURSOR_API_KEY is NOT required and is not the intended path.
 #
-# ── CODEX_SANDBOX: the setting that makes or breaks this ────────────────────
-# Lane workers must run `git push`, `gh issue edit`, and `gh pr create`, all of
-# which need network. Codex sandboxes deny network by default.
+# ── Auth ────────────────────────────────────────────────────────────────────
+#   agent login          # once; opens browser, stores subscription session
+#   agent status         # must report authenticated before this runner starts
 #
-#   workspace-write      (default) writes limited to the repo. Network is
-#                        requested via sandbox_workspace_write.network_access,
-#                        but on macOS the seatbelt sandbox is documented to
-#                        sometimes ignore that flag entirely:
-#                        https://github.com/openai/codex/issues/10390
-#                        If workers fail on push/gh, this is why.
+# ── Sandbox ─────────────────────────────────────────────────────────────────
+# Lane workers must run `git push`, `gh issue edit`, and `gh pr create`.
+# Default is `--sandbox disabled` (same operational need as Codex
+# danger-full-access). Override with CURSOR_SANDBOX=enabled only if you accept
+# that push/gh may fail inside the sandbox.
 #
-#   danger-full-access   No sandbox. This is what actually works on macOS today,
-#                        and is the closest equivalent to how `claude -p` runs
-#                        upstream. Every worker can do anything your shell can.
-#                        Opt in deliberately:
-#                            CODEX_SANDBOX=danger-full-access scripts/supersaiyan-codex-run.sh <slug>
-#
-# ── Status ─────────────────────────────────────────────────────────────────
-# The dispatcher logic is inherited and proven. The Codex worker path is NOT
-# battle-tested: super-build/super-qa/super-review were written for Claude Code
-# and describe its behaviours. Expect to iterate on the lane prompts. Run with
-# CODEX_MAX_PARALLEL=1 the first time and watch one issue end to end.
+# ── Status ──────────────────────────────────────────────────────────────────
+# The dispatcher logic is inherited and proven. The Cursor worker path is NOT
+# battle-tested: super-build/super-qa/super-review were written for Claude Code.
+# Run with CURSOR_MAX_PARALLEL=1 the first time and watch one issue end to end.
 
 set -euo pipefail
 
-# ── Codex configuration ────────────────────────────────────────────────────
-CODEX_SANDBOX="${CODEX_SANDBOX:-workspace-write}"
-CODEX_SKILLS_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
-CODEX_WORKER_LOG_DIR="${CODEX_WORKER_LOG_DIR:-.claude/supersaiyan/codex-logs}"
-
-# Model and reasoning depth. Both read from the board config when present, so a
-# run is reproducible from the config alone; env vars override for one-off runs.
-#   codex.model             e.g. gpt-5.6-sol
-#   codex.reasoning_effort  low | medium | high | xhigh | max | ultra
-CODEX_MODEL="${CODEX_MODEL:-}"
-CODEX_REASONING_EFFORT="${CODEX_REASONING_EFFORT:-}"
-
-codex_flags() {
-  # Assemble codex exec flags. Emitted one per line so callers can read into an array.
-  printf '%s\n' "--sandbox" "$CODEX_SANDBOX"
-  printf '%s\n' "--skip-git-repo-check"
-  if [ "$CODEX_SANDBOX" = "workspace-write" ]; then
-    printf '%s\n' "-c" "sandbox_workspace_write.network_access=true"
+# ── Cursor configuration ───────────────────────────────────────────────────
+# Skills: prefer ~/.cursor/skills (symlinks to SuperSaiyan skills); fall back
+# to the Codex skill install if that already exists.
+if [ -z "${CURSOR_SKILLS_DIR:-}" ]; then
+  if [ -d "$HOME/.cursor/skills" ]; then
+    CURSOR_SKILLS_DIR="$HOME/.cursor/skills"
+  elif [ -d "$HOME/.codex/skills" ]; then
+    CURSOR_SKILLS_DIR="$HOME/.codex/skills"
+  else
+    CURSOR_SKILLS_DIR="$HOME/.cursor/skills"
   fi
-  [ -n "$CODEX_MODEL" ] && printf '%s\n' "--model" "$CODEX_MODEL"
-  [ -n "$CODEX_REASONING_EFFORT" ] && printf '%s\n' "-c" "model_reasoning_effort=\"${CODEX_REASONING_EFFORT}\""
+fi
+CURSOR_WORKER_LOG_DIR="${CURSOR_WORKER_LOG_DIR:-.claude/supersaiyan/cursor-logs}"
+CURSOR_SANDBOX="${CURSOR_SANDBOX:-disabled}"
+CURSOR_MODEL="${CURSOR_MODEL:-}"
+REPO_ROOT="${REPO_ROOT:-$(pwd)}"
+
+cursor_flags() {
+  # Assemble agent CLI flags. Emitted one per line so callers can read into an array.
+  printf '%s\n' "-p"
+  printf '%s\n' "--force"
+  printf '%s\n' "--trust"
+  printf '%s\n' "--sandbox" "$CURSOR_SANDBOX"
+  printf '%s\n' "--workspace" "$REPO_ROOT"
+  printf '%s\n' "--output-format" "text"
+  [ -n "$CURSOR_MODEL" ] && printf '%s\n' "--model" "$CURSOR_MODEL"
   return 0
 }
 
@@ -91,9 +91,6 @@ HUMAN_APPROVES=$(jq -r '.human_approves_merge // false' "$CONFIG_PATH")
 REBUILD_CAP=$(jq -r '.rebuild_cap // 2' "$CONFIG_PATH")
 BLOCK_ALERT_PCT=$(jq -r '.block_rate_alert_pct // 30' "$CONFIG_PATH")
 MAX_WORKERS=$(jq -r '.max_workers // 3' "$CONFIG_PATH")
-STRICT_TASK_CHAIN=$(jq -r '.strict_task_chain // false' "$CONFIG_PATH")
-BOT_LOGIN=$(jq -r '.notifications.bot_identity // .bot_identity // ""' "$CONFIG_PATH")
-WORKER_BACKEND=$(jq -r '.worker_backend // "workflow"' "$CONFIG_PATH")
 
 # Event-driven dispatch (replaces a fixed tick): while any lane is busy, we
 # only ever check LOCAL process liveness (kill -0) -- zero GitHub calls, so
@@ -105,35 +102,40 @@ WORKER_BACKEND=$(jq -r '.worker_backend // "workflow"' "$CONFIG_PATH")
 # work added) might have changed.
 POLL_SECONDS=$(jq -r '.poll_seconds // 5' "$CONFIG_PATH")
 IDLE_RECHECK_SECONDS=$(jq -r '.idle_recheck_seconds // 60' "$CONFIG_PATH")
+STRICT_TASK_CHAIN=$(jq -r '.strict_task_chain // false' "$CONFIG_PATH")
+BOT_LOGIN=$(jq -r '.notifications.bot_identity // .bot_identity // ""' "$CONFIG_PATH")
+WORKER_BACKEND=$(jq -r '.worker_backend // "workflow"' "$CONFIG_PATH")
 
 # shellcheck source=scripts/supersaiyan-dispatch-policy.sh
 . "$(dirname "$0")/supersaiyan-dispatch-policy.sh"
 
-# Board config supplies model + reasoning effort unless already set in the env.
-[ -z "$CODEX_MODEL" ] && CODEX_MODEL=$(jq -r '.codex.model // ""' "$CONFIG_PATH")
-[ -z "$CODEX_REASONING_EFFORT" ] && CODEX_REASONING_EFFORT=$(jq -r '.codex.reasoning_effort // ""' "$CONFIG_PATH")
+# Board config supplies model unless already set in the env.
+[ -z "$CURSOR_MODEL" ] && CURSOR_MODEL=$(jq -r '.cursor.model // ""' "$CONFIG_PATH")
 
-case "${CODEX_REASONING_EFFORT:-}" in
-  ""|low|medium|high|xhigh|max|ultra) ;;
-  *) echo "🛑 invalid reasoning effort '${CODEX_REASONING_EFFORT}'." >&2
-     echo "    Valid for gpt-5.6-sol: low medium high xhigh max ultra" >&2
-     exit 64 ;;
-esac
+# One-shot parallel cap for supervised first runs.
+if [ -n "${CURSOR_MAX_PARALLEL:-}" ]; then
+  MAX_WORKERS="$CURSOR_MAX_PARALLEL"
+fi
 
-# Patched from upstream: this fork dispatches codex, so it opts in on
-# `codex-exec` rather than `claude-p`. The config must say so explicitly — a
-# board still set to `workflow` (the Claude Code dynamic-workflow backend) must
-# never be drained by this dispatcher by accident.
-if [ "$WORKER_BACKEND" != "codex-exec" ]; then
-  echo "🛑 board '${CONFIG_SLUG}' is not configured for the Codex dispatcher (worker_backend=${WORKER_BACKEND})." >&2
-  echo "    This fork dispatches \`codex exec\` workers. To use it, set:" >&2
-  echo "        \"worker_backend\": \"codex-exec\"" >&2
+# This fork dispatches Cursor Agent CLI workers. The config must say so
+# explicitly — a board still set to workflow / claude-p / codex-exec must never
+# be drained by this dispatcher by accident.
+if [ "$WORKER_BACKEND" != "cursor-agent" ]; then
+  echo "🛑 board '${CONFIG_SLUG}' is not configured for the Cursor dispatcher (worker_backend=${WORKER_BACKEND})." >&2
+  echo "    This fork dispatches \`agent -p\` workers. To use it, set:" >&2
+  echo "        \"worker_backend\": \"cursor-agent\"" >&2
   echo "    in .claude/supersaiyan/configs/${CONFIG_SLUG}.json" >&2
   echo "" >&2
-  if [ "$WORKER_BACKEND" = "workflow" ]; then
-    echo "    (Current value 'workflow' means Claude Code dynamic workflows — that path" >&2
-    echo "     runs in a Claude session via /supersaiyan run, not from this script.)" >&2
-  fi
+  case "$WORKER_BACKEND" in
+    workflow)
+      echo "    (Current value 'workflow' means Claude Code dynamic workflows — that path" >&2
+      echo "     runs in a Claude session via /supersaiyan run, not from this script.)" >&2
+      ;;
+    codex-exec)
+      echo "    (Current value 'codex-exec' means the Codex dispatcher — use" >&2
+      echo "     scripts/supersaiyan-codex-run.sh instead.)" >&2
+      ;;
+  esac
   exit 78
 fi
 
@@ -257,10 +259,6 @@ gh_rate_guard() {
 try_claim_assignee() {
   # Atomic claim. Returns 0 if we won the claim, 1 if someone else beat us.
   # Skipped when bot_identity is unset (solo single-user runs rely on local locks only).
-  # We rely on `top_card_in_column` having already filtered out cards with assignees
-  # from the cached project item-list — so we attempt the edit directly without a
-  # pre-check `gh issue view`. Saves one GraphQL call per dispatch. The edit is
-  # idempotent for self-assign; on race-loss, gh returns non-zero and we skip.
   local issue="$1"
   if [ "$BOARD_FROM_CACHE" -eq 1 ]; then
     log "offline claim on #${issue} — using local single-use lock"
@@ -272,6 +270,55 @@ try_claim_assignee() {
     return 1
   }
   return 0
+}
+
+require_cursor_subscription_auth() {
+  # Subscription login only. Do not require CURSOR_API_KEY.
+  local status_out status_json
+  if ! command -v agent >/dev/null 2>&1; then
+    log "🛑 Cursor Agent CLI ('agent') not found on PATH."
+    log "    Install: curl https://cursor.com/install -fsS | bash"
+    log "    Then:    agent login && agent status"
+    exit 69
+  fi
+
+  if [ -n "${CURSOR_API_KEY:-}" ]; then
+    log "⚠ CURSOR_API_KEY is set; this runner is designed for subscription login"
+    log "  (agent login). Unset CURSOR_API_KEY to use the stored session only."
+  fi
+
+  status_json=$(agent status --format json 2>/dev/null || true)
+  if [ -n "$status_json" ]; then
+    if echo "$status_json" | jq -e '
+        (.authenticated == true)
+        or (.loggedIn == true)
+        or (.logged_in == true)
+      ' >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  status_out=$(agent status 2>&1 || true)
+  # Use grep/bash — do not require rg on PATH (many shells don't have it).
+  # Negative phrases first — "Not logged in" contains the substring "logged in".
+  if printf '%s\n' "$status_out" | grep -Eiq \
+      'not logged in|not authenticated|logged out|please log in|unauthenticated|no account|authentication required'; then
+    log "🛑 Cursor Agent CLI is not authenticated with a subscription session."
+    log "    Run: agent login"
+    log "    Then: agent status   # must show you are logged in"
+    log "    Auth is subscription-based — do not rely on CURSOR_API_KEY."
+    exit 77
+  fi
+  # Accept "✓ Logged in as user@host" and similar success lines.
+  if printf '%s\n' "$status_out" | grep -Eiq 'logged in as|[[:alnum:]._%+-]+@[[:alnum:].-]+'; then
+    return 0
+  fi
+
+  log "🛑 could not confirm Cursor subscription auth from \`agent status\`."
+  log "    Output was:"
+  log "    $status_out"
+  log "    Run: agent login && agent status"
+  exit 77
 }
 
 dispatch_lane() {
@@ -292,24 +339,23 @@ dispatch_lane() {
     *) log "unknown lane: $lane"; return 1 ;;
   esac
 
-  # Codex cannot read Claude Code's `.claude/skills/` paths, so the prompt names
-  # absolute paths under CODEX_SKILLS_DIR. Upstream's prompt is one line; this one
-  # spells out the contract because the Codex worker has no plugin loader to
-  # auto-attach the skill.
+  # Cursor CLI does not auto-load Claude plugin skills, so the prompt names
+  # absolute paths under CURSOR_SKILLS_DIR.
   prompt="You are the ${lifecycle} lane worker for SuperSaiyan issue #${issue}.
 
 Read these files first, in order:
-  1. ${CODEX_SKILLS_DIR}/${skill}/SKILL.md
-  2. ${CODEX_SKILLS_DIR}/super-board/references/run.md  (section: ${lifecycle} lifecycle)
+  1. ${CURSOR_SKILLS_DIR}/${skill}/SKILL.md
+  2. ${CURSOR_SKILLS_DIR}/super-board/references/run.md  (section: ${lifecycle} lifecycle)
   3. AGENTS.md at the repo root — hard invariants that override anything else
   4. The task file referenced by issue #${issue}
 
 Config: ${CONFIG_PATH}
-Repo root: ${REPO_ROOT:-$PWD}
+Repo root: ${REPO_ROOT}
 
-Scope: act on issue #${issue} only. Work in a git worktree as the ${lifecycle}
-lifecycle describes. Do not dispatch further workers — you ARE the worker; the
-orchestrator loop that spawned you handles all lane scheduling.
+Scope: act on issue #${issue} only. Work in a git worktree under .worktrees/ as
+the ${lifecycle} lifecycle describes. Do not pass Cursor CLI --worktree; create
+repo-local worktrees yourself. Do not dispatch further workers — you ARE the
+worker; the orchestrator loop that spawned you handles all lane scheduling.
 
 GitHub Projects rate-limit rules:
   - Do NOT run \`gh project item-list\`.
@@ -322,25 +368,25 @@ GitHub Projects rate-limit rules:
     verify a move.
   - Prefer local git data and REST-backed \`gh issue\`/\`gh pr\` operations.
 
-Where those skill files describe running \`claude -p\`, that step does not apply
-to you: perform the work directly instead of delegating it.
+Where those skill files describe running \`claude -p\` or \`codex exec\`, that
+step does not apply to you: perform the work directly instead of delegating it.
 
 A task is complete only when every acceptance criterion in its task file passes
 by running the stated command and reading the output."
 
-  mkdir -p "$CODEX_WORKER_LOG_DIR"
+  mkdir -p "$CURSOR_WORKER_LOG_DIR"
   local flags=()
-  while IFS= read -r f; do [ -n "$f" ] && flags+=("$f"); done < <(codex_flags)
+  while IFS= read -r f; do [ -n "$f" ] && flags+=("$f"); done < <(cursor_flags)
 
-  nohup codex exec "${flags[@]}" \
-      --output-last-message "${CODEX_WORKER_LOG_DIR}/issue-${issue}-${lane}.last" \
+  nohup agent "${flags[@]}" \
       "$prompt" \
-      >"${CODEX_WORKER_LOG_DIR}/issue-${issue}-${lane}.log" 2>&1 &
+      >"${CURSOR_WORKER_LOG_DIR}/issue-${issue}-${lane}.log" 2>&1 &
   pid=$!
-  # v1.3.0+ lock format: bash-assignment style so `super-board stop` can source it
-  # to recover lane + dispatch time. issue_locked()/reap_finished_locks() still work
-  # because PID= is the first line.
+  # v1.3.0+ lock format: bash-assignment style so stop scripts can source it.
   printf 'PID=%s\nLANE=%s\nSTARTED=%s\n' "$pid" "$lane" "$(date -u +%FT%TZ)" > "$INFLIGHT_DIR/$issue"
+  # Also capture the final assistant text when the worker exits (best-effort;
+  # the full stream lives in the .log file).
+  : >"${CURSOR_WORKER_LOG_DIR}/issue-${issue}-${lane}.last"
   if [ "$BOARD_FROM_CACHE" -eq 1 ]; then
     mark_offline_dispatch "$OFFLINE_MARKERS" "$issue"
   fi
@@ -360,9 +406,6 @@ issue_status() {
 
 check_lane_zombie() {
   # $1 = lane name (build|qa|review); $2 = space-separated list of expected source columns.
-  # If the lane's worker PID is alive but its claimed issue has already moved to a column
-  # NOT in the expected source set, the worker's logical work is done — kill the zombie
-  # process and free the lane. Uses cached project items only (no extra API calls).
   local lane="$1" expected="$2" pid="" issue=""
   case "$lane" in
     build)  pid="$BUILD_PID";  issue="$BUILD_ISSUE" ;;
@@ -372,10 +415,10 @@ check_lane_zombie() {
   esac
   [ -z "$pid" ] && return 0
   [ -z "$issue" ] && return 0
-  kill -0 "$pid" 2>/dev/null || return 0   # already dead → reap_finished_locks handles it
+  kill -0 "$pid" 2>/dev/null || return 0
   local cur found=0 col
   cur=$(issue_status "$issue")
-  [ -z "$cur" ] && return 0                # not in cache (closed/deleted/race) → don't kill
+  [ -z "$cur" ] && return 0
   for col in $expected; do
     [ "$cur" = "$col" ] && found=1
   done
@@ -401,19 +444,21 @@ sweep_lane_zombies() {
 }
 
 reap_finished_locks() {
-  # Sweep inflight/ for dead PIDs; remove locks AND sweep stale assignees so the
-  # next dispatch can re-claim the card if the worker crashed without releasing.
-  # The assignee remove is idempotent — no-op if the worker exited cleanly.
   local lock issue
   for lock in "$INFLIGHT_DIR"/*; do
     [ -f "$lock" ] || continue
     issue=$(basename "$lock")
-    # Issue locks only: basenames are issue numbers. Anything else (e.g. the
-    # workflow backend's workflow-wave.lock) is not ours to reap — deleting it
-    # would dissolve the backend mutual exclusion mid-run.
     case "$issue" in *[!0-9]*|'') continue ;; esac
     read_lock "$issue"
     if [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; then
+      # Best-effort: copy tail of worker log into .last for post-mortems.
+      if [ -n "${LANE:-}" ]; then
+        local logf="${CURSOR_WORKER_LOG_DIR}/issue-${issue}-${LANE}.log"
+        local lastf="${CURSOR_WORKER_LOG_DIR}/issue-${issue}-${LANE}.last"
+        if [ -f "$logf" ]; then
+          tail -n 80 "$logf" >"$lastf" 2>/dev/null || true
+        fi
+      fi
       rm -f "$lock"
       if [ -n "$BOT_LOGIN" ]; then
         gh issue edit "$issue" --remove-assignee "$BOT_LOGIN" >/dev/null 2>&1 || true
@@ -426,32 +471,52 @@ reap_finished_locks() {
 }
 
 # ───────────────────────────── preconditions ─────────────────────────────
-log "supersaiyan codex run started — config=${CONFIG_SLUG} variant=${VARIANT} base=${BASE_BRANCH} poll=${POLL_SECONDS}s idle_recheck=${IDLE_RECHECK_SECONDS}s max_workers=${MAX_WORKERS}"
-log "codex: sandbox=${CODEX_SANDBOX} skills=${CODEX_SKILLS_DIR}"
-log "codex: model=${CODEX_MODEL:-<codex default>} reasoning=${CODEX_REASONING_EFFORT:-<model default>}"
+log "supersaiyan cursor run started — config=${CONFIG_SLUG} variant=${VARIANT} base=${BASE_BRANCH} poll=${POLL_SECONDS}s idle_recheck=${IDLE_RECHECK_SECONDS}s max_workers=${MAX_WORKERS}"
+log "cursor: sandbox=${CURSOR_SANDBOX} skills=${CURSOR_SKILLS_DIR} workspace=${REPO_ROOT}"
+log "cursor: model=${CURSOR_MODEL:-<cli default>}"
 
-if [ "$CODEX_SANDBOX" = "workspace-write" ] && [ "$(uname -s)" = "Darwin" ]; then
-  log "⚠ macOS + workspace-write: the seatbelt sandbox may ignore network_access and block"
-  log "  git push / gh. If workers fail on push, re-run with CODEX_SANDBOX=danger-full-access."
-  log "  See https://github.com/openai/codex/issues/10390"
-fi
+require_cursor_subscription_auth
 
-if ! command -v codex >/dev/null 2>&1; then
-  log "🛑 codex CLI not found on PATH. Install it, or use Claude Code's super-board-run.sh instead."
+if [ ! -d "$CURSOR_SKILLS_DIR/super-build" ] || [ ! -d "$CURSOR_SKILLS_DIR/super-qa" ] || [ ! -d "$CURSOR_SKILLS_DIR/super-review" ]; then
+  log "🛑 SuperSaiyan skills missing under ${CURSOR_SKILLS_DIR}."
+  log "    Symlink them from the Claude plugin cache, e.g.:"
+  log "      mkdir -p ~/.cursor/skills"
+  log "      for s in super-build super-qa super-review super-board supersaiyan \\"
+  log "               test-driven-development verification-before-completion \\"
+  log "               refining-spec writing-board-tasks; do"
+  log "        ln -sfn \"\$HOME/.claude/plugins/cache/supersaiyan/supersaiyan/1.0.0/skills/\$s\" \\"
+  log "               \"\$HOME/.cursor/skills/\$s\""
+  log "      done"
   exit 69
 fi
 
-# Orphan-worker guard. `|| true` defends against pipefail when pgrep finds nothing.
-# Patched from upstream: matches codex workers, and also refuses to start when a
-# Claude-side runner is live, since the two would collide on assignee claims.
-ORPHANS=$(pgrep -f 'codex exec .*lane worker for SuperSaiyan' 2>/dev/null | grep -v "^$$\$" | wc -l | tr -d ' ' || true)
+# Orphan / peer-runner guards.
+ORPHANS=$(pgrep -f 'agent -p .*lane worker for SuperSaiyan' 2>/dev/null | grep -v "^$$\$" | wc -l | tr -d ' ' || true)
 ORPHANS=${ORPHANS:-0}
+CODEX_ORPHANS=$(pgrep -f 'codex exec .*lane worker for SuperSaiyan' 2>/dev/null | wc -l | tr -d ' ' || true)
+CODEX_ORPHANS=${CODEX_ORPHANS:-0}
 CLAUDE_ORPHANS=$(pgrep -f 'claude -p .*super-board run' 2>/dev/null | wc -l | tr -d ' ' || true)
 CLAUDE_ORPHANS=${CLAUDE_ORPHANS:-0}
+CODEX_DISPATCHER=$(pgrep -f 'supersaiyan-codex-run\.sh' 2>/dev/null | wc -l | tr -d ' ' || true)
+CODEX_DISPATCHER=${CODEX_DISPATCHER:-0}
+CURSOR_DISPATCHER=$(pgrep -f 'supersaiyan-cursor-run\.sh' 2>/dev/null | grep -v "^$$\$" | wc -l | tr -d ' ' || true)
+CURSOR_DISPATCHER=${CURSOR_DISPATCHER:-0}
+
 if [ "$ORPHANS" -gt 0 ]; then
-  log "🛑 refusing to start: ${ORPHANS} codex lane workers already running."
-  log "    Stop them first: pkill -f 'codex exec .*lane worker for SuperSaiyan'"
+  log "🛑 refusing to start: ${ORPHANS} Cursor lane workers already running."
+  log "    Stop them first: pkill -f 'agent -p .*lane worker for SuperSaiyan'"
   log "    Then re-run: $0 $CONFIG_SLUG"
+  exit 73
+fi
+if [ "$CURSOR_DISPATCHER" -gt 0 ]; then
+  log "🛑 refusing to start: another supersaiyan-cursor-run.sh is already running."
+  log "    Stop it first: pkill -f 'supersaiyan-cursor-run.sh'"
+  exit 73
+fi
+if [ "$CODEX_ORPHANS" -gt 0 ] || [ "$CODEX_DISPATCHER" -gt 0 ]; then
+  log "🛑 refusing to start: Codex SuperSaiyan runner/workers are live."
+  log "    Two runners would race on GitHub assignee claims and produce duplicate PRs."
+  log "    Stop them first: pkill -f 'supersaiyan-codex-run.sh'; pkill -f 'codex exec .*lane worker for SuperSaiyan'"
   exit 73
 fi
 if [ "$CLAUDE_ORPHANS" -gt 0 ]; then
@@ -461,7 +526,7 @@ if [ "$CLAUDE_ORPHANS" -gt 0 ]; then
   exit 73
 fi
 
-# Workflow-backend mutual exclusion (see references/run-workflow.md §Preconditions).
+# Workflow-backend mutual exclusion.
 WAVE_LOCK=".claude/supersaiyan/inflight/workflow-wave.lock"
 if [ -f "$WAVE_LOCK" ]; then
   log "🛑 refusing to start: workflow-backend wave in flight ($WAVE_LOCK exists)."
@@ -505,9 +570,6 @@ QA_PID=""; QA_ISSUE=""
 REVIEW_PID=""; REVIEW_ISSUE=""
 
 while true; do
-  # Workflow-backend mutual exclusion, re-checked every tick: the startup
-  # check alone leaves a TOCTOU window where a workflow run starting at the
-  # same moment as this dispatcher is never detected by either side.
   if [ -f "$WAVE_LOCK" ]; then
     log "🛑 workflow-backend wave appeared mid-run ($WAVE_LOCK) — halting for mutual exclusion."
     log "    Resume after the wave: $0 $CONFIG_SLUG"
@@ -554,7 +616,6 @@ while true; do
 
   PROGRESS=0
 
-  # ACTIVE_WORKERS already computed at top of loop (free pre-check).
   can_dispatch() {
     [ "$ACTIVE_WORKERS" -lt "$MAX_WORKERS" ]
   }
