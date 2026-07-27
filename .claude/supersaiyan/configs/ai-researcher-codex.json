@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "description": "AI-Researcher build pipeline — Codex dispatcher",
+  "project": {
+    "owner": "BankNatchapol",
+    "title": "AI-Researcher",
+    "number": 6
+  },
+  "variant": "full",
+  "worker_backend": "codex-exec",
+  "model_tier": "medium",
+  "target": {
+    "type": "repo",
+    "url": null
+  },
+  "repo": {
+    "path": "/Users/banknatchapol/Desktop/Codes/AI-Researcher",
+    "remote": "https://github.com/BankNatchapol/AI-Researcher.git"
+  },
+  "base_branch": "main",
+  "columns": [
+    "Ready",
+    "Building",
+    "QA",
+    "Review",
+    "Done",
+    "Blocked",
+    "Skipped"
+  ],
+  "paths": {
+    "project_md": "docs/supersaiyan/PROJECT.md",
+    "pre_flight_md": "docs/supersaiyan/pre-flight.md",
+    "runs_dir": "docs/supersaiyan/runs"
+  },
+  "human_approves_merge": false,
+  "truth_gate": "non-trivial",
+  "truth_threshold": 70,
+  "rebuild_cap": 2,
+  "strict_task_chain": true,
+  "tick_seconds": 600,
+  "block_rate_alert_pct": 30,
+  "notifications": {
+    "channel": "none",
+    "chat_id": null,
+    "bot_identity": "BankNatchapol"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
+  }
+}

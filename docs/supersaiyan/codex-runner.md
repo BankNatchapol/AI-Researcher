@@ -38,7 +38,7 @@ break — re-run the install, or copy instead of symlinking.
 
 ```bash
 # from the repo root
-nohup scripts/supersaiyan-codex-run.sh ai-researcher &
+nohup scripts/supersaiyan-codex-run.sh ai-researcher-codex &
 
 # watch it
 tail -f .claude/supersaiyan/codex-logs/issue-*-build.log
@@ -59,8 +59,19 @@ network. **Codex sandboxes deny network by default.**
 The runner prints a warning at startup when it detects macOS + `workspace-write`.
 
 ```bash
-CODEX_SANDBOX=danger-full-access nohup scripts/supersaiyan-codex-run.sh ai-researcher &
+CODEX_SANDBOX=danger-full-access nohup scripts/supersaiyan-codex-run.sh ai-researcher-codex &
 ```
+
+For repositories whose task files form a strict predecessor chain, set
+`"strict_task_chain": true` in the board config. The dispatcher will then keep
+the lowest-numbered unfinished issue in control of the pipeline through Build,
+QA, and Review. It will not start the next Ready issue until that issue reaches
+Done (or Skipped).
+
+For long-running boards, use `tick_seconds: 600` or higher. Lane prompts forbid
+workers from calling the expensive full-board discovery commands; workers
+operate only on their assigned issue and PR and trust successful status
+mutations instead of re-fetching the project.
 
 Choose `danger-full-access` deliberately, not by default. It removes the sandbox for every
 worker the loop spawns, and those workers act on GitHub with your credentials.
@@ -76,35 +87,51 @@ worker the loop spawns, and those workers act on GitHub with your credentials.
 
 ## What is proven and what is not
 
-**Proven:** the dispatcher logic is inherited from upstream and unchanged. The fork passes
-`bash -n`, and flag assembly was verified across all three configurations.
+**Proven end to end.** All 11 Phase 1 issues drained through this dispatcher
+(`danger-full-access`, `gpt-5.6-sol` at `high` reasoning): `Ready → Building → QA → Review →
+Done`, real PRs opened and squash-merged, `git push`/`gh` working under the unsandboxed
+setting. `super-build`/`super-qa`/`super-review` work correctly even though they were
+written describing Claude Code's behaviours — the lane prompt's override ("perform the work
+directly instead of delegating it") held up in practice, not just in theory.
 
-**Not proven:** the Codex worker path has not been run end to end. `super-build`,
-`super-qa`, and `super-review` were written for Claude Code and describe its behaviours —
-including instructions to spawn `claude -p` sub-workers, which the lane prompt explicitly
-overrides. Expect to iterate on the prompts.
+One real defect surfaced and was fixed during that run: a builder overwrote `.gitignore`
+from scratch instead of appending, dropping existing rules. `AGENTS.md`'s
+"Editing shared config files" section (append-or-merge only) exists because of this.
 
-**Run the first one supervised:**
+**Still worth watching per-phase:** Phase 2 (tree traversal, retrieval quality) is a harder
+judgment-call phase than Phase 1's mostly-mechanical scaffolding — a passing test suite
+doesn't tell you the retrieval is actually good. Read the eval report, don't just trust the
+green checkmark.
+
+## Config split — one file per tool
+
+`.claude/supersaiyan/configs/ai-researcher-codex.json` is this dispatcher's own config.
+Claude Code and Cursor each have their own (`ai-researcher-claude.json`,
+`ai-researcher-cursor.json`) — all three point at the same GitHub Project, but none share a
+mutable field, so starting one can't silently flip another's `worker_backend` out from under
+it. Always pass the slug explicitly:
 
 ```bash
-# one lane, one issue, watch it the whole way
-CODEX_MAX_PARALLEL=1 CODEX_SANDBOX=danger-full-access \
-  scripts/supersaiyan-codex-run.sh ai-researcher
+scripts/supersaiyan-codex-run.sh ai-researcher-codex
 ```
 
-Watch a single issue go `Ready → Building → QA → Review` before trusting it unattended.
+Don't rely on `.claude/supersaiyan/active` for dispatch — it's one shared pointer, fine for
+a bare `/supersaiyan status`, but whichever tool set it last wins for anyone who omits the
+slug on a `run`/dispatcher command.
 
 ## Never run both runners at once
 
-The Claude runner and this one both claim issues via GitHub assignee. Running both races on
-those claims and produces duplicate PRs. The startup guard refuses to start if it detects
-the other, but do not defeat it.
+Regardless of config file, every dispatcher targets the same GitHub Project and claims
+issues via assignee. Running two at once races on those claims and produces duplicate PRs.
+Each script's orphan guard checks for the *other* tool's process name (not its config file),
+so it refuses to start if Cursor's or Claude's runner is already live — but don't rely on
+the guard as your only safety net; don't start two on purpose.
 
 ## What still works from Claude Code
 
 Everything except `run`. `setup`, `new`, `prepare`, `lint`, and `status` are pure
-instructions plus `gh` calls and work identically from either tool — including the phase
-gating you need:
+instructions plus `gh` calls and work identically from any tool — including the phase
+gating you need, which never touches `worker_backend`:
 
 ```
 /supersaiyan prepare ai-researcher-app --phase 2

@@ -43,8 +43,30 @@ running the stated command, not by inspection.
 | 3 — Structured Extraction & Dual Scoring | Cursor | manual |
 | 4 — Monitoring, Discourse & Temporal Digests | Cursor | manual |
 
-Phases run manually: pick up the issue, build it, verify acceptance criteria, open a PR,
-move the board card yourself. The SuperSaiyan autonomous loop is not driving these phases.
+Phases run manually by default: pick up the issue, build it, verify acceptance criteria,
+open a PR, move the board card yourself.
+
+Each tool has its own board config, so starting one never touches another's settings:
+
+| Config | `worker_backend` | Script | Auth |
+|--------|------------------|--------|------|
+| `ai-researcher-codex.json` | `codex-exec` | [`scripts/supersaiyan-codex-run.sh`](scripts/supersaiyan-codex-run.sh) | Codex CLI subscription |
+| `ai-researcher-cursor.json` | `cursor-agent` | [`scripts/supersaiyan-cursor-run.sh`](scripts/supersaiyan-cursor-run.sh) | Cursor subscription (`agent login`) |
+| `ai-researcher-claude.json` | `workflow` | Claude Code `/supersaiyan run ai-researcher-claude` | Claude subscription |
+
+Always pass the config slug explicitly to whichever script you're using (e.g.
+`scripts/supersaiyan-codex-run.sh ai-researcher-codex`) — never rely on
+`.claude/supersaiyan/active` for dispatch, since that pointer is a single shared value and
+whichever tool set it last wins for anyone who omits the slug.
+
+**One backend at a time regardless of config file.** All three configs point at the same
+GitHub Project (#6), so two dispatchers running together still race on issue-assignee
+claims and produce duplicate PRs — the per-tool orphan guards in each script refuse to
+start if another tool's runner process is already alive, but that only helps if you don't
+run them in separate terminals faster than the guard can catch it.
+
+Docs: [`docs/supersaiyan/cursor-runner.md`](docs/supersaiyan/cursor-runner.md),
+[`docs/supersaiyan/codex-runner.md`](docs/supersaiyan/codex-runner.md).
 
 Board: https://github.com/users/BankNatchapol/projects/6
 

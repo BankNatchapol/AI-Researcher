@@ -139,14 +139,22 @@ Recorded so later phases inherit them rather than rediscovering them:
 
 ## Running the Project
 
-Each phase runs through the autonomous loop independently:
+Each phase runs through the autonomous loop independently. Each tool reads its own board
+config, so switching tools between phases never requires editing a shared file:
 
 ```
-/supersaiyan run ai-researcher              # drains Phase 1 tasks
-# when Phase 1 is Done:
-/supersaiyan prepare ai-researcher-app --phase 2   # unlocks Phase 2
-/supersaiyan run ai-researcher
+# Phase 1-2 (Codex, per phase ownership below):
+scripts/supersaiyan-codex-run.sh ai-researcher-codex
+
+# when a phase is Done, unlock the next one:
+/supersaiyan prepare ai-researcher-app --phase N
+
+# Phase 3-4 (Cursor):
+scripts/supersaiyan-cursor-run.sh ai-researcher-cursor
 ```
+
+`/supersaiyan prepare` works identically regardless of which tool builds the phase — it
+only files issues and reconciles the board, it never touches `worker_backend`.
 
 ## Source
 
