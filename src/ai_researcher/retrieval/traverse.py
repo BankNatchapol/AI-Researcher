@@ -367,9 +367,12 @@ def traverse(
         )
         for node, judgement in ranked_pairs
     )
-    stopped_reason: StopReason = (
-        "sufficient_evidence" if sufficient_evidence else "budget_exhausted"
-    )
+    if sufficient_evidence:
+        stopped_reason: StopReason = "sufficient_evidence"
+    elif budget.exhausted:
+        stopped_reason = "budget_exhausted"
+    else:
+        stopped_reason = "no_candidates"
     return _finish(
         store=traversal_store,
         question=question,

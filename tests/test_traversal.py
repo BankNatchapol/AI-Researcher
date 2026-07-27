@@ -184,6 +184,35 @@ def test_traversal_never_expands_more_than_three_nodes() -> None:
     assert store.writes[0]["nodes_expanded"] == 3
 
 
+def test_depleted_frontier_with_remaining_budget_is_not_budget_exhausted() -> None:
+    from ai_researcher.retrieval.traverse import traverse
+
+    store = FakeTraversalStore([_node(1), _node(2, parent_id=1)])
+
+    def fake_complete(
+        messages: list[dict],
+        job: str,
+        schema: dict | None = None,
+    ) -> dict[str, Any]:
+        assert job == "traversal"
+        assert schema is not None
+        payload = json.loads(messages[-1]["content"])
+        return _model_response(payload, sufficient_evidence=False)
+
+    result = traverse(
+        "Find relevant evidence",
+        "surface-codes",
+        max_nodes=10,
+        shortlist_fn=lambda scope, question, limit: [101],
+        complete_fn=fake_complete,
+        store=store,
+    )
+
+    assert result.trace.nodes_expanded == 1
+    assert result.trace.stopped_reason == "no_candidates"
+    assert store.writes[0]["stopped_reason"] == "no_candidates"
+
+
 @pytest.mark.parametrize(
     ("configured_limit", "call_limit", "expected_limit"),
     [
