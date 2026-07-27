@@ -110,22 +110,23 @@ def _page_range(div: ElementTree.Element) -> tuple[int | None, int | None]:
     for child in list(div):
         if _local_name(child.tag) != "p":
             continue
-        page = _page_from_coords(child.get("coords"))
-        if page is not None:
-            pages.append(page)
+        pages.extend(_pages_from_coords(child.get("coords")))
     if not pages:
         return None, None
     return min(pages), max(pages)
 
 
-def _page_from_coords(coords: str | None) -> int | None:
+def _pages_from_coords(coords: str | None) -> list[int]:
     if not coords:
-        return None
-    first = coords.split(",", 1)[0].strip()
-    try:
-        return int(float(first))
-    except ValueError:
-        return None
+        return []
+    pages: list[int] = []
+    for coordinate_group in coords.split(";"):
+        page = coordinate_group.split(",", 1)[0].strip()
+        try:
+            pages.append(int(float(page)))
+        except ValueError:
+            continue
+    return pages
 
 
 __all__ = ["SectionRecord", "tei_to_sections"]
