@@ -270,3 +270,43 @@ def test_second_invalid_attribution_returns_insufficient_evidence() -> None:
     assert result.insufficient_evidence is True
     assert result.answer_text is None
     assert result.citations == []
+
+
+def test_any_unattributed_statement_returns_insufficient_evidence() -> None:
+    answer = _answer_module()
+    nodes = (
+        _node(11, paper_id=101, section_path="Results", page_start=4, page_end=5),
+        _node(22, paper_id=202, section_path="Discussion", page_start=8, page_end=8),
+    )
+    attempts = 0
+
+    def partly_unattributed_complete(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal attempts
+        attempts += 1
+        return {
+            "statements": [
+                {"text": "Supported.", "node_ids": [11]},
+                {"text": "Missing its attribution.", "node_ids": []},
+            ]
+        }
+
+    result = answer.synthesize(
+        "What is supported?",
+        _traversal(*nodes),
+        complete_fn=partly_unattributed_complete,
+        citation_fn=lambda node: answer.Citation(
+            node_id=node.node_id,
+            paper_id=node.paper_id,
+            paper_title="Paper",
+            section_path=node.section_path,
+            page_start=node.page_start,
+            page_end=node.page_end,
+            identifier_type="doi",
+            identifier="10.1000/paper",
+        ),
+    )
+
+    assert attempts == 2
+    assert result.insufficient_evidence is True
+    assert result.answer_text is None
+    assert result.citations == []
