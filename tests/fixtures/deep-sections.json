@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "parent_id": null,
+    "section_path": "1",
+    "title": "Level 1",
+    "ordinal": 0,
+    "page_start": 1,
+    "page_end": 1,
+    "body_text": "Root section."
+  },
+  {
+    "id": 2,
+    "parent_id": 1,
+    "section_path": "1/1.1",
+    "title": "Level 2",
+    "ordinal": 0,
+    "page_start": 1,
+    "page_end": 2,
+    "body_text": "Second level."
+  },
+  {
+    "id": 3,
+    "parent_id": 2,
+    "section_path": "1/1.1/1.1.1",
+    "title": "Level 3",
+    "ordinal": 0,
+    "page_start": 2,
+    "page_end": 2,
+    "body_text": "Third level."
+  },
+  {
+    "id": 4,
+    "parent_id": 3,
+    "section_path": "1/1.1/1.1.1/1.1.1.1",
+    "title": "Level 4",
+    "ordinal": 0,
+    "page_start": 2,
+    "page_end": 3,
+    "body_text": "Fourth level."
+  },
+  {
+    "id": 5,
+    "parent_id": 4,
+    "section_path": "1/1.1/1.1.1/1.1.1.1/1.1.1.1.1",
+    "title": "Level 5",
+    "ordinal": 0,
+    "page_start": 3,
+    "page_end": 3,
+    "body_text": "Fifth level."
+  },
+  {
+    "id": 6,
+    "parent_id": 5,
+    "section_path": "1/1.1/1.1.1/1.1.1.1/1.1.1.1.1/1.1.1.1.1.1",
+    "title": "Level 6",
+    "ordinal": 0,
+    "page_start": 3,
+    "page_end": 4,
+    "body_text": "Sixth level."
+  }
+]
