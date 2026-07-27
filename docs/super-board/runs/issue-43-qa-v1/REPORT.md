@@ -1,0 +1,55 @@
+# QA Report — issue #43 v1
+
+Date: 2026-07-27T15:07:58Z
+Branch: issue-43-define-extraction-models-and-reject-unanchored-records
+Commit: 0db4e37
+PR: https://github.com/BankNatchapol/AI-Researcher/pull/52
+
+## Scope
+Non-visual ACs (API/unit tests only). No UI — screenshots intentionally omitted.
+
+## Acceptance Criteria plan
+
+| AC | Observable test | Result |
+|----|-----------------|--------|
+| AC1 | test_models_require_non_empty_tree_node_id | see below |
+| AC2 | test_missing_tree_node_id_is_named_error_and_logged | see below |
+| AC3 | test_parse_quantity_numeric_unit_variants + test_valid_record_passes_validation | see below |
+| AC4 | test_unparseable_json_retries_once_then_paper_failure_without_raising | see below |
+| AC5 | uv run pytest tests/test_extraction_validation.py exits 0 | see below |
+
+## Commands
+
+```
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-43-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-43-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 9 items
+
+tests/test_extraction_validation.py::test_models_require_non_empty_tree_node_id PASSED [ 11%]
+tests/test_extraction_validation.py::test_valid_record_passes_validation PASSED [ 22%]
+tests/test_extraction_validation.py::test_missing_tree_node_id_is_named_error_and_logged PASSED [ 33%]
+tests/test_extraction_validation.py::test_foreign_tree_node_id_is_rejected_and_logged PASSED [ 44%]
+tests/test_extraction_validation.py::test_parse_quantity_numeric_unit_variants[1%-1.0-%] PASSED [ 55%]
+tests/test_extraction_validation.py::test_parse_quantity_numeric_unit_variants[0.01-0.01-None] PASSED [ 66%]
+tests/test_extraction_validation.py::test_parse_quantity_numeric_unit_variants[1e-2-0.01-None] PASSED [ 77%]
+tests/test_extraction_validation.py::test_unparseable_json_retries_once_then_paper_failure_without_raising PASSED [ 88%]
+tests/test_extraction_validation.py::test_malformed_then_valid_on_retry_accepts PASSED [100%]
+
+============================== 9 passed in 0.05s ===============================
+```
+
+## Full suite + lint
+```
+........................................................................ [ 42%]
+........................................................................ [ 84%]
+..........................                                               [100%]
+170 passed in 9.92s
+```
+```
+[1;32mAll checks passed![0m
+90 files already formatted
+```
