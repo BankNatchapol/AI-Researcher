@@ -141,6 +141,21 @@ def ingest_scope(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None
     )
 
 
+@app.command("index")
+def index_scope(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None:
+    """Build or refresh per-paper section trees for a saved scope."""
+
+    from ai_researcher.trees import build
+
+    try:
+        result = build.index_scope(scope_name)
+    except build.UnknownScopeError as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(
+        f"Index complete: built {result.built}, skipped {result.skipped}, failed {result.failed}."
+    )
+
+
 @app.command("status")
 def corpus_status(
     scope: str | None = typer.Option(
