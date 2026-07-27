@@ -7,6 +7,13 @@ from ai_researcher.retrieval.shortlist import (
     registered_shortlist_backends,
     shortlist,
 )
+from ai_researcher.retrieval.traverse import (
+    ExpandedNode,
+    RankedNode,
+    TraversalResult,
+    TraversalTrace,
+    traverse,
+)
 
 
 def __getattr__(name: str) -> type[Shortlist]:
@@ -27,8 +34,13 @@ __all__ = [
     "PageIndexShortlist",
     "PostgresFTSShortlist",
     "Shortlist",
+    "ExpandedNode",
+    "RankedNode",
+    "TraversalResult",
+    "TraversalTrace",
     "get_shortlist_backend",
     "register_shortlist_backend",
     "registered_shortlist_backends",
     "shortlist",
+    "traverse",
 ]

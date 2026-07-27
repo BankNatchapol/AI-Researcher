@@ -29,6 +29,7 @@ class Settings:
     source_min_intervals: Mapping[str, float]
     storage_dir: Path
     shortlist_backend: str
+    traversal_max_nodes: int
 
 
 def _required_environment_variable(name: str) -> str:
@@ -113,4 +114,8 @@ def get_settings() -> Settings:
         source_min_intervals=_source_min_intervals(),
         storage_dir=Path(os.environ.get("STORAGE_DIR", "data/papers")),
         shortlist_backend=os.environ.get("SHORTLIST_BACKEND", "pageindex"),
+        traversal_max_nodes=_positive_integer_environment_variable(
+            "TRAVERSAL_MAX_NODES",
+            default=40,
+        ),
     )
