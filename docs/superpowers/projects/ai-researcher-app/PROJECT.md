@@ -113,6 +113,29 @@ Recorded so later phases inherit them rather than rediscovering them:
    and 20+ hours; batched, the same work is roughly 1,000 calls and runs overnight. Any task
    that loops the gateway per item is a defect. Recorded escape hatch: if API access is ever
    obtained, add a LiteLLM backend behind the same `complete()` interface — no caller changes.
+8. **`data/papers/` (the PDF `STORAGE_DIR`) is not gitignored.** Found during Phase 1 review,
+   2026-07-26. No harm yet — nothing has been ingested against this repo — but a real
+   `airesearch ingest` run before this is fixed risks committing downloaded PDFs, which may
+   be copyrighted. Fix: add `data/papers/` (or the configured `STORAGE_DIR`) to `.gitignore`
+   before the first real ingest.
+9. **`tei.py`'s page-range extraction only reads the first coordinate group in GROBID's
+   `coords` attribute.** Found during Phase 1 review, 2026-07-26. GROBID coords are
+   semicolon-separated `page,x,y,w,h` groups, one per line-box; `_page_from_coords` takes only
+   the first group. A paragraph that starts on one page and continues onto the next is
+   attributed entirely to its starting page when it is the only paragraph in its section —
+   understating `page_end`. Low blast radius today (no phase depends on exact page ranges
+   yet), but Phase 2 builds citation rendering directly on `section.page_start`/`page_end`,
+   so a wrong page range there is worse than a missing one. Fix before Phase 2 task 05
+   (answer synthesis / citation rendering) ships: parse all semicolon-separated groups per
+   `<p>` and take the true min/max page across all of them, not just the first group's page.
+10. **Two independent identity-matching heuristics exist and can disagree.**
+    `scoping/estimate.py` (DOI → normalized title → source+external_id) and
+    `ingest/dedup.py` (DOI → arXiv ID → title+first-author-surname+year) are separately
+    implemented. The estimate shown by `airesearch scope show` before ingesting can
+    therefore run slightly higher than the deduplicated corpus size `ingest` actually
+    produces, since the estimate's heuristic merges less aggressively. Not a bug — the
+    estimate is documented as an estimate — but worth consolidating into one shared identity
+    function if the discrepancy becomes confusing in practice.
 
 ## Running the Project
 
