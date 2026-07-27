@@ -97,7 +97,7 @@ tail -f .claude/supersaiyan/cursor-logs/issue-*-build.log
 Stop workers with:
 
 ```bash
-pkill -f 'agent -p .*lane worker for SuperSaiyan'
+pkill -f 'agent.*lane worker for SuperSaiyan'
 pkill -f 'supersaiyan-cursor-run.sh'
 ```
 

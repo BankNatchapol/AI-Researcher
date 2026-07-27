@@ -233,6 +233,52 @@ for the event-driven dispatch change in #6 — the same edit was applied twice, 
 
 ---
 
+## 8. The Cursor orphan-guard pattern never matched a real worker process
+
+**What happened:** every place that needed to detect a live Cursor worker —
+`supersaiyan-cursor-run.sh`'s own orphan guard, its `pkill` stop instructions, the
+dashboard's worker count, and `docs/supersaiyan/cursor-runner.md`'s stop command — used the
+pattern `agent -p .*lane worker for SuperSaiyan`, assuming `agent` and `-p` sit adjacent on
+the command line. They don't. The real `agent` CLI re-execs itself as:
+
+```
+agent --use-system-ca /Users/x/.local/share/cursor-agent/versions/<ver>/index.js -p --force ...
+```
+
+`-p` is separated from `agent` by `--use-system-ca` and the `index.js` path, so the pattern
+never matched a real worker — `pgrep -f 'agent -p .*lane worker for SuperSaiyan'` returned 0
+every time, live, on this project's real run:
+
+```
+$ pgrep -f 'agent -p .*lane worker for SuperSaiyan' | wc -l
+0
+$ pgrep -f 'agent.*lane worker for SuperSaiyan' | wc -l
+1
+```
+
+Practical consequences, all silent: the dispatcher's own orphan guard could never detect a
+second Cursor dispatcher's live workers (only the dispatcher *process* name was actually
+checked); the documented `pkill -f 'agent -p .*lane worker...'` stop command would not kill
+a running worker; the dashboard's Cursor worker count always showed 0 regardless of actual
+activity — which is what looked like "nothing is running" from the outside while a worker
+was, in fact, genuinely alive and working.
+
+**Status: fixed in this project.** Pattern corrected to `agent.*lane worker for
+SuperSaiyan` (drops the false adjacency assumption) in
+`scripts/supersaiyan-cursor-run.sh`, `scripts/watch-run.sh`, and
+`docs/supersaiyan/cursor-runner.md`. Regression test added
+(`test_orphan_pattern_matches_the_real_cursor_agent_command_line`) that checks the fixed
+pattern against a real captured command-line shape and asserts the broken pattern doesn't
+appear anywhere in the fixed files.
+
+**Upstream fix needed:** any SuperSaiyan tool integration that shells out to a CLI wrapping
+another process (as `agent` does) needs its orphan/liveness patterns verified against the
+*actual* live command line, not assumed from the documented invocation syntax. This class of
+bug is easy to introduce and silent to ship — nothing errors, the guard just quietly never
+fires.
+
+---
+
 ## Summary table
 
 | # | Problem | Status | Where the fix lives |
@@ -245,6 +291,7 @@ for the event-driven dispatch change in #6 — the same edit was applied twice, 
 | 5 | GROBID page-range reads only first coord group | Fixed | `tei.py` (domain code) |
 | 6 | Fixed-tick polling exhausts GraphQL quota | Fixed, measured live (6s vs 600s) | Event-driven dispatch |
 | 7 | No backend abstraction — dispatcher forked per tool | Working, but duplicated | Needs `Backend` interface |
+| 8 | Orphan-guard pattern never matched real Cursor workers | Fixed, verified against a live process | Pattern + regression test |
 
 Items with no "upstream" location are things that had to be re-solved per project because
 the fix lives in this repo's scripts/config rather than in the SuperSaiyan plugin itself.

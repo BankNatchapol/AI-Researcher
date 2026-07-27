@@ -491,7 +491,7 @@ if [ ! -d "$CURSOR_SKILLS_DIR/super-build" ] || [ ! -d "$CURSOR_SKILLS_DIR/super
 fi
 
 # Orphan / peer-runner guards.
-ORPHANS=$(pgrep -f 'agent -p .*lane worker for SuperSaiyan' 2>/dev/null | grep -v "^$$\$" | wc -l | tr -d ' ' || true)
+ORPHANS=$(pgrep -f 'agent.*lane worker for SuperSaiyan' 2>/dev/null | grep -v "^$$\$" | wc -l | tr -d ' ' || true)
 ORPHANS=${ORPHANS:-0}
 CODEX_ORPHANS=$(pgrep -f 'codex exec .*lane worker for SuperSaiyan' 2>/dev/null | wc -l | tr -d ' ' || true)
 CODEX_ORPHANS=${CODEX_ORPHANS:-0}
@@ -504,7 +504,7 @@ CURSOR_DISPATCHER=${CURSOR_DISPATCHER:-0}
 
 if [ "$ORPHANS" -gt 0 ]; then
   log "🛑 refusing to start: ${ORPHANS} Cursor lane workers already running."
-  log "    Stop them first: pkill -f 'agent -p .*lane worker for SuperSaiyan'"
+  log "    Stop them first: pkill -f 'agent.*lane worker for SuperSaiyan'"
   log "    Then re-run: $0 $CONFIG_SLUG"
   exit 73
 fi

@@ -91,7 +91,7 @@ render() {
   case "$BACKEND" in
     cursor-agent)
       pgrep -f 'supersaiyan-cursor-run\.sh' >/dev/null 2>&1 && disp_running=1
-      workers=$(pgrep -f 'agent -p .*lane worker for SuperSaiyan' 2>/dev/null | wc -l | tr -d ' ')
+      workers=$(pgrep -f 'agent.*lane worker for SuperSaiyan' 2>/dev/null | wc -l | tr -d ' ')
       ;;
     codex-exec)
       pgrep -f 'supersaiyan-codex-run\.sh' >/dev/null 2>&1 && disp_running=1

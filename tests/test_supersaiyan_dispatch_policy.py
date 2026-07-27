@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -127,6 +128,38 @@ def test_cursor_backend_is_configured_and_guarded() -> None:
     assert "supersaiyan-codex-run" in runner  # mutual exclusion
     # "Not logged in" must be treated as unauthenticated (substring "logged in" trap).
     assert "not logged in" in runner
+
+
+def test_orphan_pattern_matches_the_real_cursor_agent_command_line() -> None:
+    # The `agent` CLI re-execs itself as
+    # `agent --use-system-ca <path>/index.js -p --force --trust ... <prompt>`,
+    # so "agent" and "-p" are never adjacent on the real process command line.
+    # A pattern requiring `agent -p` as a literal substring (the original
+    # orphan-guard text) never matches a genuine worker -- pgrep -f finds 0
+    # processes, so the mutual-exclusion guard, the `pkill` stop instructions,
+    # and the dashboard's worker count are all silently blind to real workers.
+    real_cmdline = (
+        "/Users/x/.local/bin/agent --use-system-ca /Users/x/.local/share/"
+        "cursor-agent/versions/2026.07.23-e383d2b/index.js -p --force --trust "
+        "--sandbox disabled --workspace /repo --output-format text "
+        "--model cursor-grok-4.5-high You are the Builder lane worker for "
+        "SuperSaiyan issue #44."
+    )
+
+    broken_pattern = r"agent -p .*lane worker for SuperSaiyan"
+    fixed_pattern = r"agent.*lane worker for SuperSaiyan"
+
+    assert re.search(broken_pattern, real_cmdline) is None
+    assert re.search(fixed_pattern, real_cmdline) is not None
+
+    for path in (CURSOR_RUNNER, WATCHER):
+        text = path.read_text()
+        assert "agent -p .*lane worker" not in text
+        assert "agent.*lane worker for SuperSaiyan" in text
+
+    docs = CURSOR_DOCS.read_text()
+    assert "agent -p .*lane worker" not in docs
+    assert "agent.*lane worker for SuperSaiyan" in docs
 
 
 def test_cursor_runner_rejects_wrong_backend() -> None:
