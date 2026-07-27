@@ -7,7 +7,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ai_researcher.answer.citation import Citation, render_citation
+from ai_researcher.answer.citation import (
+    Citation,
+    CitationResolutionError,
+    render_citation,
+)
 from ai_researcher.llm import gateway
 from ai_researcher.retrieval import RankedNode, TraversalResult
 
@@ -76,16 +80,19 @@ def synthesize(
     """Create grounded prose from selected traversal nodes."""
 
     budget_limited = traversal_result.trace.stopped_reason == "budget_exhausted"
-    if len(traversal_result.ranked_nodes) < 2:
+    citable_nodes = tuple(
+        node for node in traversal_result.ranked_nodes if _has_real_page_range(node)
+    )
+    if len(citable_nodes) < 2:
         return _insufficient_answer(
             budget_limited=budget_limited,
             message=(
-                "Insufficient evidence: at least two supporting nodes are required "
-                "to synthesize an answer."
+                "Insufficient evidence: at least two supporting nodes with real page "
+                "ranges are required to synthesize an answer."
             ),
         )
 
-    nodes_by_id = {node.node_id: node for node in traversal_result.ranked_nodes}
+    nodes_by_id = {node.node_id: node for node in citable_nodes}
     call_model = gateway.complete if complete_fn is None else complete_fn
     statements: tuple[_Statement, ...] | None = None
     for attempt in range(2):
@@ -96,7 +103,7 @@ def synthesize(
                     "content": json.dumps(
                         _synthesis_payload(
                             question,
-                            traversal_result.ranked_nodes,
+                            citable_nodes,
                             regeneration=attempt > 0,
                         ),
                         ensure_ascii=False,
@@ -124,7 +131,16 @@ def synthesize(
         dict.fromkeys(node_id for statement in statements for node_id in statement.node_ids)
     )
     cite_node = render_citation if citation_fn is None else citation_fn
-    citations = [cite_node(nodes_by_id[node_id]) for node_id in cited_node_ids]
+    try:
+        citations = [cite_node(nodes_by_id[node_id]) for node_id in cited_node_ids]
+    except CitationResolutionError:
+        return _insufficient_answer(
+            budget_limited=budget_limited,
+            message=(
+                "Insufficient evidence: cited nodes could not be resolved to papers "
+                "with a DOI or arXiv ID."
+            ),
+        )
     return Answer(
         answer_text="\n".join(_render_statement(statement) for statement in statements),
         citations=citations,
@@ -166,6 +182,17 @@ def _synthesis_payload(
             for node in nodes
         ],
     }
+
+
+def _has_real_page_range(node: RankedNode) -> bool:
+    return (
+        isinstance(node.page_start, int)
+        and not isinstance(node.page_start, bool)
+        and isinstance(node.page_end, int)
+        and not isinstance(node.page_end, bool)
+        and node.page_start > 0
+        and node.page_end >= node.page_start
+    )
 
 
 def _validated_statements(

@@ -23,8 +23,8 @@ def _node(
     *,
     paper_id: int,
     section_path: str,
-    page_start: int,
-    page_end: int,
+    page_start: int | None,
+    page_end: int | None,
 ) -> RankedNode:
     return RankedNode(
         node_id=node_id,
@@ -212,6 +212,67 @@ def test_fewer_than_two_nodes_returns_insufficient_evidence_without_synthesis() 
         "What threshold is reported?",
         _traversal(node),
         complete_fn=unexpected_model_call,
+    )
+
+    assert result.insufficient_evidence is True
+    assert result.answer_text is None
+    assert result.citations == []
+    assert result.message is not None
+    assert "insufficient evidence" in result.message.casefold()
+
+
+def test_nodes_without_real_page_ranges_return_insufficient_evidence() -> None:
+    answer = _answer_module()
+    nodes = (
+        _node(
+            11,
+            paper_id=101,
+            section_path="Results/Threshold",
+            page_start=None,
+            page_end=None,
+        ),
+        _node(
+            22,
+            paper_id=202,
+            section_path="Discussion/Comparison",
+            page_start=None,
+            page_end=None,
+        ),
+    )
+
+    def unexpected_model_call(*args: Any, **kwargs: Any) -> dict:
+        pytest.fail("nodes without real page ranges must not support synthesis")
+
+    result = answer.synthesize(
+        "What threshold is reported?",
+        _traversal(*nodes),
+        complete_fn=unexpected_model_call,
+    )
+
+    assert result.insufficient_evidence is True
+    assert result.answer_text is None
+    assert result.citations == []
+    assert result.message is not None
+    assert "insufficient evidence" in result.message.casefold()
+
+
+def test_missing_paper_identifier_returns_insufficient_evidence() -> None:
+    answer = _answer_module()
+    nodes = (
+        _node(11, paper_id=101, section_path="Results", page_start=4, page_end=5),
+        _node(22, paper_id=202, section_path="Discussion", page_start=8, page_end=8),
+    )
+
+    def missing_identifier(_node: RankedNode):
+        raise answer.CitationResolutionError("Paper has neither a DOI nor an arXiv ID")
+
+    result = answer.synthesize(
+        "What evidence is supported?",
+        _traversal(*nodes),
+        complete_fn=lambda *args, **kwargs: {
+            "statements": [{"text": "The evidence supports this.", "node_ids": [11]}]
+        },
+        citation_fn=missing_identifier,
     )
 
     assert result.insufficient_evidence is True
