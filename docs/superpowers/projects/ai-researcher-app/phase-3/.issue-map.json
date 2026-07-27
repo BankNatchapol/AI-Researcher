@@ -1,0 +1,47 @@
+{
+  "01-extraction-schema": {
+    "number": 42,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/42",
+    "order": 1
+  },
+  "02-extraction-models-validation": {
+    "number": 43,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/43",
+    "order": 2
+  },
+  "03-extraction-pipeline": {
+    "number": 44,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/44",
+    "order": 3
+  },
+  "04-evidence-linking": {
+    "number": 45,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/45",
+    "order": 4
+  },
+  "05-claim-identity-dedup": {
+    "number": 46,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/46",
+    "order": 5
+  },
+  "06-confidence-scorer": {
+    "number": 47,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/47",
+    "order": 6
+  },
+  "07-quality-rubric-and-invariants": {
+    "number": 48,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/48",
+    "order": 7
+  },
+  "08-claims-cli-and-mcp": {
+    "number": 49,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/49",
+    "order": 8
+  },
+  "09-extraction-eval": {
+    "number": 50,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/50",
+    "order": 9
+  }
+}
