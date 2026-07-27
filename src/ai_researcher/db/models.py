@@ -8,6 +8,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Identity,
     Index,
@@ -275,13 +276,226 @@ retrieval_trace = Table(
     ),
 )
 
+claim = Table(
+    "claim",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "tree_node_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("claim_text", Text, nullable=False),
+    Column("normalized_text", Text, nullable=False),
+    Column("claim_type", Text, nullable=False),
+    Column("subject", Text),
+    Column("predicate", Text),
+    Column("object_value", Float),
+    Column("unit", Text),
+    Column(
+        "canonical_claim_id",
+        BigInteger,
+        ForeignKey("claim.id", ondelete="SET NULL"),
+    ),
+    Column("extraction_model", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
+method = Table(
+    "method",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "tree_node_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("method_text", Text, nullable=False),
+    Column("extraction_model", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
+result = Table(
+    "result",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "tree_node_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("result_text", Text, nullable=False),
+    Column("extraction_model", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
+dataset = Table(
+    "dataset",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "tree_node_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("dataset_name", Text, nullable=False),
+    Column("description", Text),
+    Column("extraction_model", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
+metric = Table(
+    "metric",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "tree_node_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("metric_name", Text, nullable=False),
+    Column("object_value", Float),
+    Column("unit", Text),
+    Column("extraction_model", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
+claim_evidence = Table(
+    "claim_evidence",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "claim_id",
+        BigInteger,
+        ForeignKey("claim.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "tree_node_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("stance", Text, nullable=False),
+    Column("rationale_text", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+    CheckConstraint(
+        "stance IN ('supports', 'refutes', 'mentions')",
+        name="ck_claim_evidence_stance",
+    ),
+)
+
+claim_score = Table(
+    "claim_score",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "claim_id",
+        BigInteger,
+        ForeignKey("claim.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("confidence", Integer, nullable=False),
+    Column("evidence_quality", Integer, nullable=False),
+    Column("rubric_version", Text, nullable=False),
+    Column(
+        "scored_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
 __all__ = [
+    "claim",
+    "claim_evidence",
+    "claim_score",
+    "dataset",
     "ingest_job",
     "metadata",
+    "method",
+    "metric",
     "paper",
     "paper_author",
     "paper_scope",
     "paper_source",
+    "result",
     "retrieval_trace",
     "schema_migration",
     "scope",
