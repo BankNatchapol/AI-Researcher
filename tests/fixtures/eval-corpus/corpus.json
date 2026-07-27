@@ -1,0 +1,62 @@
+{
+  "scopes": {
+    "fixture-eval": {
+      "sections": [
+        {
+          "node_id": 11,
+          "paper_id": 101,
+          "section_path": "Results/Threshold",
+          "page_start": 4,
+          "page_end": 5
+        },
+        {
+          "node_id": 12,
+          "paper_id": 101,
+          "section_path": "Introduction",
+          "page_start": 1,
+          "page_end": 1
+        },
+        {
+          "node_id": 21,
+          "paper_id": 202,
+          "section_path": "Methods/Decoder",
+          "page_start": 6,
+          "page_end": 7
+        },
+        {
+          "node_id": 22,
+          "paper_id": 202,
+          "section_path": "Discussion/Limitations",
+          "page_start": 9,
+          "page_end": 9
+        }
+      ],
+      "questions": {
+        "What threshold is reported for the surface code?": {
+          "retrieved_node_ids": [11, 12],
+          "cited_node_ids": [11],
+          "statements": [
+            {
+              "text": "The fixture reports a threshold.",
+              "node_ids": [11]
+            },
+            {
+              "text": "This deliberately unsupported fixture sentence has no attribution.",
+              "node_ids": []
+            }
+          ]
+        },
+        "Which decoder is used for error correction?": {
+          "retrieved_node_ids": [22, 21],
+          "cited_node_ids": [22],
+          "statements": [
+            {
+              "text": "The first retrieved section does not identify the decoder.",
+              "node_ids": [22]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
