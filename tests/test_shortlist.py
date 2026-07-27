@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import uuid
 from collections.abc import Iterator
 
@@ -14,6 +16,25 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ai_researcher.db.models import paper, paper_scope, section, tree_node
 from ai_researcher.db.models import scope as scope_table
+
+
+def test_pageindex_module_imports_in_fresh_interpreter() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from ai_researcher.trees.corpus import PageIndexShortlist; "
+                "print(PageIndexShortlist.__name__)"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "PageIndexShortlist"
 
 
 def _pg8000_url(url: str):

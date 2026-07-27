@@ -17,6 +17,22 @@ class Shortlist(Protocol):
 
 
 _BACKENDS: dict[str, type[Shortlist]] = {}
+_BUILTINS_LOADED = False
+
+
+def _load_builtin_shortlist_backends() -> None:
+    """Register built-ins lazily so implementation modules can import the protocol."""
+
+    global _BUILTINS_LOADED
+    if _BUILTINS_LOADED:
+        return
+
+    from ai_researcher.retrieval.fts import PostgresFTSShortlist
+    from ai_researcher.trees.corpus import PageIndexShortlist
+
+    register_shortlist_backend("pageindex", PageIndexShortlist)
+    register_shortlist_backend("postgres_fts", PostgresFTSShortlist)
+    _BUILTINS_LOADED = True
 
 
 def register_shortlist_backend(name: str, implementation: type[Shortlist]) -> None:
@@ -31,12 +47,14 @@ def register_shortlist_backend(name: str, implementation: type[Shortlist]) -> No
 def registered_shortlist_backends() -> Mapping[str, type[Shortlist]]:
     """Return a snapshot of registered shortlist implementations."""
 
+    _load_builtin_shortlist_backends()
     return dict(_BACKENDS)
 
 
 def get_shortlist_backend(name: str | None = None) -> Shortlist:
     """Construct the configured shortlist implementation."""
 
+    _load_builtin_shortlist_backends()
     backend_name = get_settings().shortlist_backend if name is None else name
     try:
         implementation = _BACKENDS[backend_name]
