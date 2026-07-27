@@ -1,0 +1,82 @@
+version: 1
+questions:
+  - question: Which stabilizer operators define the surface code?
+    scope: surface-codes
+    section_paths:
+      - Surface codes/Stabilizer operators
+  - question: How are data-qubit errors detected in a surface code?
+    scope: surface-codes
+    section_paths:
+      - Surface codes/Syndrome extraction
+  - question: How are logical X and Z operators represented on the lattice?
+    scope: surface-codes
+    section_paths:
+      - Surface codes/Logical operators
+  - question: What threshold estimates are reported for the surface code?
+    scope: surface-codes
+    section_paths:
+      - Error correction/Threshold estimates
+  - question: How does minimum-weight perfect matching decode a surface code?
+    scope: surface-codes
+    section_paths:
+      - Error correction/Minimum-weight perfect matching
+  - question: Why must stabilizer measurements be repeated during fault-tolerant correction?
+    scope: surface-codes
+    section_paths:
+      - Error correction/Fault-tolerant syndrome extraction
+  - question: How is a logical surface-code qubit initialized?
+    scope: surface-codes
+    section_paths:
+      - Logical operations/Initialization
+  - question: How is a logical surface-code qubit measured?
+    scope: surface-codes
+    section_paths:
+      - Logical operations/Measurement
+  - question: How do lattice-surgery merge and split operations implement a logical CNOT?
+    scope: surface-codes
+    section_paths:
+      - Lattice surgery/Merge and split operations
+  - question: What physical-qubit overhead is estimated for a logical surface-code qubit?
+    scope: surface-codes
+    section_paths:
+      - Resource estimates/Physical qubit overhead
+  - question: What components make up the Transformer encoder and decoder?
+    scope: transformers
+    section_paths:
+      - Model Architecture/Encoder and Decoder Stacks
+  - question: How is scaled dot-product attention computed?
+    scope: transformers
+    section_paths:
+      - Model Architecture/Attention/Scaled Dot-Product Attention
+  - question: Why does the Transformer use multiple attention heads?
+    scope: transformers
+    section_paths:
+      - Model Architecture/Attention/Multi-Head Attention
+  - question: What function is applied at each position after attention?
+    scope: transformers
+    section_paths:
+      - Model Architecture/Position-wise Feed-Forward Networks
+  - question: How are token embeddings tied to the output softmax?
+    scope: transformers
+    section_paths:
+      - Model Architecture/Embeddings and Softmax
+  - question: How does the Transformer represent token order without recurrence?
+    scope: transformers
+    section_paths:
+      - Model Architecture/Positional Encoding
+  - question: What computational advantages does self-attention have over recurrence?
+    scope: transformers
+    section_paths:
+      - Why Self-Attention
+  - question: Which optimizer and learning-rate schedule train the Transformer?
+    scope: transformers
+    section_paths:
+      - Training/Optimizer
+  - question: Which regularization methods are used when training the Transformer?
+    scope: transformers
+    section_paths:
+      - Training/Regularization
+  - question: What machine-translation results does the Transformer report?
+    scope: transformers
+    section_paths:
+      - Results/Machine Translation

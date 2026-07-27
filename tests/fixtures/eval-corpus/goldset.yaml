@@ -1,0 +1,10 @@
+version: 1
+questions:
+  - question: What threshold is reported for the surface code?
+    scope: fixture-eval
+    section_paths:
+      - Results/Threshold
+  - question: Which decoder is used for error correction?
+    scope: fixture-eval
+    section_paths:
+      - Methods/Decoder

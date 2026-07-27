@@ -202,6 +202,26 @@ def serve_mcp() -> None:
     run()
 
 
+@app.command("eval")
+def evaluate_retrieval(
+    scope: str = typer.Option(..., "--scope", help="Saved scope to evaluate."),
+    k: int = typer.Option(5, "--k", min=1, help="Retrieved-node cutoff for recall@k."),
+) -> None:
+    """Score retrieval and citations against the hand-labelled gold set."""
+
+    from ai_researcher.eval import GoldSetValidationError, run_evaluation
+
+    try:
+        result = run_evaluation(scope, k=k)
+    except (FileNotFoundError, GoldSetValidationError, ValueError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"retrieval recall@{result.k}: {result.metrics.recall_at_k:.3f}")
+    typer.echo(f"citation precision: {result.metrics.citation_precision:.3f}")
+    typer.echo(f"unsupported-statement rate: {result.metrics.unsupported_statement_rate:.3f}")
+    typer.echo(f"shortlist backend: {result.shortlist_backend}")
+    typer.echo(f"report: {result.report_path}")
+
+
 @app.command("status")
 def corpus_status(
     scope: str | None = typer.Option(
