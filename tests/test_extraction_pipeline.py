@@ -17,10 +17,13 @@ from typer.testing import CliRunner
 from ai_researcher.cli import app
 from ai_researcher.db.models import (
     claim,
+    claim_evidence,
+    claim_score,
     dataset,
     method,
     metric,
     paper,
+    paper_extraction_state,
     paper_scope,
     result,
     tree_node,
@@ -397,6 +400,9 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
         connection.execute(delete(result).where(result.c.paper_id == parsed_id))
         connection.execute(delete(dataset).where(dataset.c.paper_id == parsed_id))
         connection.execute(delete(metric).where(metric.c.paper_id == parsed_id))
+        connection.execute(
+            delete(paper_extraction_state).where(paper_extraction_state.c.paper_id == parsed_id)
+        )
 
     fail_paper_id = parsed_id
     call_count = 0
@@ -481,6 +487,11 @@ def test_prompt_version_bump_reextracts_only_stale_papers(
                 .where(extraction_table.c.paper_id == abstract_id)
                 .values(prompt_version="2")
             )
+        connection.execute(
+            update(paper_extraction_state)
+            .where(paper_extraction_state.c.paper_id == abstract_id)
+            .values(prompt_version="2")
+        )
 
     monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
     called_paper_ids.clear()
@@ -505,3 +516,160 @@ def test_prompt_version_bump_reextracts_only_stale_papers(
                 (parsed_id, "2"),
                 (abstract_id, "2"),
             }
+
+
+def test_valid_empty_extraction_is_resumable(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.llm import gateway
+
+    _seed_scope_with_valid_section_fks(isolated_database)
+    call_count = 0
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        nonlocal call_count
+        del messages, schema
+        assert job == "extraction"
+        call_count += 1
+        return {"records": []}
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    runner = CliRunner()
+
+    first = runner.invoke(app, ["extract", "surface-codes"])
+    second = runner.invoke(app, ["extract", "surface-codes"])
+
+    assert first.exit_code == 0, first.output
+    assert "extracted 2" in first.stdout
+    assert "failed 0" in first.stdout
+    assert second.exit_code == 0, second.output
+    assert "extracted 0" in second.stdout
+    assert "skipped 2" in second.stdout
+    assert call_count == 2
+
+
+def test_all_rejected_output_does_not_replace_valid_extractions(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.extraction import prompts
+    from ai_researcher.llm import gateway
+
+    _seed_scope_with_valid_section_fks(isolated_database)
+    reject_all = False
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        assert job == "extraction"
+        payload = json.loads(messages[-1]["content"])
+        if reject_all:
+            return {
+                "records": [
+                    {
+                        "record_type": "claim",
+                        "tree_node_id": 999_999,
+                        "claim_text": "Cross-paper claim",
+                        "normalized_text": "cross-paper claim",
+                        "claim_type": "fact",
+                    }
+                ]
+            }
+        node_ids = [
+            node["tree_node_id"] for group in payload["section_groups"] for node in group["nodes"]
+        ]
+        return _extraction_payload(node_ids)
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    runner = CliRunner()
+    initial = runner.invoke(app, ["extract", "surface-codes"])
+    assert initial.exit_code == 0, initial.output
+
+    with isolated_database.connect() as connection:
+        original_claim_ids = set(connection.execute(select(claim.c.id)).scalars())
+
+    reject_all = True
+    monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
+    bumped = runner.invoke(app, ["extract", "surface-codes"])
+
+    assert bumped.exit_code == 0, bumped.output
+    assert "extracted 0" in bumped.stdout
+    assert "failed 2" in bumped.stdout
+    with isolated_database.connect() as connection:
+        assert set(connection.execute(select(claim.c.id)).scalars()) == original_claim_ids
+
+
+def test_prompt_bump_preserves_claim_identity_and_dependents(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.extraction import prompts
+    from ai_researcher.llm import gateway
+
+    _seed_scope_with_valid_section_fks(isolated_database)
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        assert job == "extraction"
+        payload = json.loads(messages[-1]["content"])
+        node_ids = [
+            node["tree_node_id"] for group in payload["section_groups"] for node in group["nodes"]
+        ]
+        return _extraction_payload(node_ids)
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    runner = CliRunner()
+    initial = runner.invoke(app, ["extract", "surface-codes"])
+    assert initial.exit_code == 0, initial.output
+
+    with isolated_database.begin() as connection:
+        original_claim = connection.execute(
+            select(claim.c.id, claim.c.paper_id, claim.c.tree_node_id).order_by(claim.c.id)
+        ).first()
+        assert original_claim is not None
+        connection.execute(
+            insert(claim_evidence).values(
+                claim_id=original_claim.id,
+                tree_node_id=original_claim.tree_node_id,
+                paper_id=original_claim.paper_id,
+                stance="supports",
+                rationale_text="Quoted support.",
+            )
+        )
+        connection.execute(
+            insert(claim_score).values(
+                claim_id=original_claim.id,
+                confidence=80,
+                evidence_quality=70,
+                rubric_version="1",
+            )
+        )
+
+    monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
+    bumped = runner.invoke(app, ["extract", "surface-codes"])
+
+    assert bumped.exit_code == 0, bumped.output
+    with isolated_database.connect() as connection:
+        refreshed_claim_id = connection.execute(
+            select(claim.c.id).where(
+                claim.c.paper_id == original_claim.paper_id,
+                claim.c.tree_node_id == original_claim.tree_node_id,
+            )
+        ).scalar_one()
+        assert refreshed_claim_id == original_claim.id
+        assert (
+            connection.execute(
+                select(func.count())
+                .select_from(claim_evidence)
+                .where(claim_evidence.c.claim_id == original_claim.id)
+            ).scalar_one()
+            == 1
+        )
+        assert (
+            connection.execute(
+                select(func.count())
+                .select_from(claim_score)
+                .where(claim_score.c.claim_id == original_claim.id)
+            ).scalar_one()
+            == 1
+        )

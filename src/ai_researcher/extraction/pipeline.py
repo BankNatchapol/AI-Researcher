@@ -8,16 +8,20 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import Connection, delete, func, insert, select
+from sqlalchemy import Connection, delete, func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from ai_researcher.config import get_settings
 from ai_researcher.db import connect
 from ai_researcher.db.models import (
     claim,
+    claim_evidence,
+    claim_score,
     dataset,
     method,
     metric,
     paper,
+    paper_extraction_state,
     paper_scope,
     result,
     section,
@@ -314,12 +318,26 @@ def extract_paper(
             failed=True,
             failure_reason=reason,
         )
+    if not outcome.accepted and outcome.rejected:
+        reason = "all extraction records were rejected"
+        logger.warning("Extraction failed for paper %s: %s", paper_input.id, reason)
+        return ExtractionResult(
+            paper_id=paper_input.id,
+            failed=True,
+            failure_reason=reason,
+        )
 
     batch = _partition_accepted(outcome.accepted)
     if persist:
         if connection is None:
             raise ExtractionError("persist=True requires an open database connection")
-        _persist_extractions(connection, paper_id=paper_input.id, batch=batch)
+        _persist_extractions(
+            connection,
+            paper_id=paper_input.id,
+            batch=batch,
+            extraction_model=model_name,
+            prompt_version=version,
+        )
 
     return ExtractionResult(
         paper_id=paper_input.id,
@@ -375,7 +393,12 @@ def extract_scope(
     for paper_row in paper_rows:
         paper_id = int(paper_row["id"])
         with open_connection() as connection:
-            if _paper_extraction_is_current(connection, paper_id=paper_id, prompt_version=version):
+            if _paper_extraction_is_current(
+                connection,
+                paper_id=paper_id,
+                extraction_model=model_name,
+                prompt_version=version,
+            ):
                 skipped += 1
                 paper_results.append(ExtractionResult(paper_id=paper_id, skipped=True))
                 continue
@@ -426,22 +449,21 @@ def _paper_extraction_is_current(
     connection: Connection,
     *,
     paper_id: int,
+    extraction_model: str,
     prompt_version: str,
 ) -> bool:
-    """A paper is current when it has any extraction row at ``prompt_version``."""
+    """Return whether a successful extraction matches the current model and prompt."""
 
-    for table in (claim, method, result, dataset, metric):
-        count = connection.execute(
-            select(func.count())
-            .select_from(table)
-            .where(
-                table.c.paper_id == paper_id,
-                table.c.prompt_version == prompt_version,
-            )
-        ).scalar_one()
-        if int(count) > 0:
-            return True
-    return False
+    count = connection.execute(
+        select(func.count())
+        .select_from(paper_extraction_state)
+        .where(
+            paper_extraction_state.c.paper_id == paper_id,
+            paper_extraction_state.c.extraction_model == extraction_model,
+            paper_extraction_state.c.prompt_version == prompt_version,
+        )
+    ).scalar_one()
+    return int(count) > 0
 
 
 def _load_paper_input(connection: Connection, paper_row: Any) -> PaperExtractionInput:
@@ -491,35 +513,17 @@ def _persist_extractions(
     *,
     paper_id: int,
     batch: _AcceptedBatch,
+    extraction_model: str,
+    prompt_version: str,
 ) -> None:
-    """Replace prior extractions for ``paper_id`` with the newly accepted batch."""
+    """Reconcile prior extractions and record durable per-paper completion."""
 
-    connection.execute(delete(claim).where(claim.c.paper_id == paper_id))
+    _reconcile_claims(connection, paper_id=paper_id, records=batch.claims)
     connection.execute(delete(method).where(method.c.paper_id == paper_id))
     connection.execute(delete(result).where(result.c.paper_id == paper_id))
     connection.execute(delete(dataset).where(dataset.c.paper_id == paper_id))
     connection.execute(delete(metric).where(metric.c.paper_id == paper_id))
 
-    if batch.claims:
-        connection.execute(
-            insert(claim),
-            [
-                {
-                    "paper_id": paper_id,
-                    "tree_node_id": record.tree_node_id,
-                    "claim_text": record.claim_text,
-                    "normalized_text": record.normalized_text,
-                    "claim_type": record.claim_type,
-                    "subject": record.subject,
-                    "predicate": record.predicate,
-                    "object_value": record.object_value,
-                    "unit": record.unit,
-                    "extraction_model": record.extraction_model,
-                    "prompt_version": record.prompt_version,
-                }
-                for record in batch.claims
-            ],
-        )
     if batch.methods:
         connection.execute(
             insert(method),
@@ -579,6 +583,119 @@ def _persist_extractions(
                 for record in batch.metrics
             ],
         )
+    connection.execute(
+        pg_insert(paper_extraction_state)
+        .values(
+            paper_id=paper_id,
+            extraction_model=extraction_model,
+            prompt_version=prompt_version,
+        )
+        .on_conflict_do_update(
+            index_elements=[paper_extraction_state.c.paper_id],
+            set_={
+                "extraction_model": extraction_model,
+                "prompt_version": prompt_version,
+                "completed_at": func.current_timestamp(),
+            },
+        )
+    )
+
+
+def _claim_values(paper_id: int, record: ClaimRecord) -> dict[str, Any]:
+    return {
+        "paper_id": paper_id,
+        "tree_node_id": record.tree_node_id,
+        "claim_text": record.claim_text,
+        "normalized_text": record.normalized_text,
+        "claim_type": record.claim_type,
+        "subject": record.subject,
+        "predicate": record.predicate,
+        "object_value": record.object_value,
+        "unit": record.unit,
+        "extraction_model": record.extraction_model,
+        "prompt_version": record.prompt_version,
+    }
+
+
+def _claim_identity(record: ClaimRecord) -> tuple[int, str, str]:
+    return (record.tree_node_id, record.normalized_text, record.claim_type)
+
+
+def _reconcile_claims(
+    connection: Connection,
+    *,
+    paper_id: int,
+    records: list[ClaimRecord],
+) -> None:
+    """Preserve IDs for stable claims and refuse to cascade linked stale claims."""
+
+    existing_rows = (
+        connection.execute(
+            select(
+                claim.c.id,
+                claim.c.tree_node_id,
+                claim.c.normalized_text,
+                claim.c.claim_type,
+            )
+            .where(claim.c.paper_id == paper_id)
+            .order_by(claim.c.id)
+        )
+        .mappings()
+        .all()
+    )
+    existing_by_identity: dict[tuple[int, str, str], list[int]] = {}
+    for row in existing_rows:
+        identity = (
+            int(row["tree_node_id"]),
+            str(row["normalized_text"]),
+            str(row["claim_type"]),
+        )
+        existing_by_identity.setdefault(identity, []).append(int(row["id"]))
+
+    matched: list[tuple[int, ClaimRecord]] = []
+    new_records: list[ClaimRecord] = []
+    for record in records:
+        candidates = existing_by_identity.get(_claim_identity(record), [])
+        if candidates:
+            matched.append((candidates.pop(0), record))
+        else:
+            new_records.append(record)
+
+    stale_ids = [
+        claim_id for candidates in existing_by_identity.values() for claim_id in candidates
+    ]
+    if stale_ids and _claims_have_dependents(connection, stale_ids):
+        msg = (
+            f"Paper {paper_id} re-extraction would remove linked claims; "
+            "preserving prior extraction"
+        )
+        raise ExtractionError(msg)
+
+    for claim_id, record in matched:
+        connection.execute(
+            update(claim).where(claim.c.id == claim_id).values(**_claim_values(paper_id, record))
+        )
+    if new_records:
+        connection.execute(
+            insert(claim),
+            [_claim_values(paper_id, record) for record in new_records],
+        )
+    if stale_ids:
+        connection.execute(delete(claim).where(claim.c.id.in_(stale_ids)))
+
+
+def _claims_have_dependents(connection: Connection, claim_ids: list[int]) -> bool:
+    for table, column in (
+        (claim_evidence, claim_evidence.c.claim_id),
+        (claim_score, claim_score.c.claim_id),
+        (claim, claim.c.canonical_claim_id),
+    ):
+        count = connection.execute(
+            select(func.count()).select_from(table).where(column.in_(claim_ids))
+        ).scalar_one()
+        if int(count) > 0:
+            return True
+    return False
 
 
 __all__ = [
