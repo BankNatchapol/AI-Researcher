@@ -560,6 +560,47 @@ def test_extract_cli_canonicalizes_by_default_and_allows_opt_out(monkeypatch) ->
     assert canonicalized_scopes == ["surface-codes"]
 
 
+@pytest.mark.parametrize("dedup_args", [[], ["--dedup"]], ids=["default", "explicit"])
+def test_extract_cli_processes_dedup_backlog_after_opt_out(
+    monkeypatch: pytest.MonkeyPatch,
+    dedup_args: list[str],
+) -> None:
+    from ai_researcher.cli import app
+    from ai_researcher.evidence import identity
+    from ai_researcher.evidence import link as evidence_link
+    from ai_researcher.extraction import pipeline
+    from ai_researcher.extraction.pipeline import ExtractScopeResult
+
+    extraction_results = iter(
+        (
+            ExtractScopeResult(extracted=1, skipped=0, failed=0),
+            ExtractScopeResult(extracted=0, skipped=1, failed=0),
+        )
+    )
+    monkeypatch.setattr(pipeline, "extract_scope", lambda scope_name: next(extraction_results))
+    monkeypatch.setattr(
+        evidence_link,
+        "link_scope_evidence",
+        lambda scope_name: SimpleNamespace(claims_linked=0, evidence_links=0, failed=0),
+    )
+    canonicalized_scopes: list[str] = []
+
+    def fake_canonicalize_scope(scope_name: str) -> SimpleNamespace:
+        canonicalized_scopes.append(scope_name)
+        return SimpleNamespace(pairs_compared=1, canonical_claims=1, merged_claims=1)
+
+    monkeypatch.setattr(identity, "canonicalize_scope", fake_canonicalize_scope)
+    runner = CliRunner()
+
+    opted_out = runner.invoke(app, ["extract", "surface-codes", "--no-dedup"])
+    opted_in = runner.invoke(app, ["extract", "surface-codes", *dedup_args])
+
+    assert opted_out.exit_code == 0, opted_out.output
+    assert opted_in.exit_code == 0, opted_in.output
+    assert canonicalized_scopes == ["surface-codes"]
+    assert "Claim canonicalization complete: pairs=1 canonical=1 merged=1." in opted_in.stdout
+
+
 def test_extract_rerun_does_no_identity_or_stance_work(
     identity_database: Engine,
     monkeypatch: pytest.MonkeyPatch,

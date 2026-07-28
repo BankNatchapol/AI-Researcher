@@ -206,18 +206,7 @@ def extract_corpus(
     if dedup_enabled:
         from ai_researcher.evidence import identity
 
-        has_new_claim_work = result.extracted > 0 or (
-            link_result is not None and link_result.claims_linked > 0
-        )
-        identity_result = (
-            identity.canonicalize_scope(scope_name)
-            if has_new_claim_work
-            else identity.CanonicalizationResult(
-                pairs_compared=0,
-                canonical_claims=0,
-                merged_claims=0,
-            )
-        )
+        identity_result = identity.canonicalize_scope(scope_name)
         typer.echo(
             "Claim canonicalization complete: "
             f"pairs={identity_result.pairs_compared} "
