@@ -26,6 +26,7 @@ CLAIM_COLUMNS = {
     "object_value",
     "unit",
     "canonical_claim_id",
+    "identity_checked_at",
     "extraction_model",
     "prompt_version",
     "created_at",

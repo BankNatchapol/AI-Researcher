@@ -8,7 +8,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol, TypeAlias
 
-from sqlalchemy import Connection, delete, or_, select, update
+from sqlalchemy import Connection, delete, func, or_, select, update
 
 from ai_researcher.db import connect
 from ai_researcher.db.models import claim as claim_table
@@ -96,6 +96,7 @@ class PostgresClaimIdentityStore:
                         claim_table.c.object_value,
                         claim_table.c.unit,
                         claim_table.c.canonical_claim_id,
+                        claim_table.c.identity_checked_at,
                     )
                     .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
                     .join(scope_table, scope_table.c.id == paper_scope.c.scope_id)
@@ -109,6 +110,22 @@ class PostgresClaimIdentityStore:
                 .all()
             )
         return tuple(rows)
+
+    def mark_claims_checked(self, claim_ids: Iterable[int]) -> None:
+        """Record that pending roots completed an identity pass."""
+
+        checked_ids = tuple(claim_ids)
+        if not checked_ids:
+            return
+        with self._connection_factory() as connection:
+            connection.execute(
+                update(claim_table)
+                .where(
+                    claim_table.c.id.in_(checked_ids),
+                    claim_table.c.identity_checked_at.is_(None),
+                )
+                .values(identity_checked_at=func.now())
+            )
 
     def save_canonical_groups(self, groups: list[CanonicalGroup]) -> None:
         with self._connection_factory() as connection:
@@ -259,11 +276,31 @@ def canonicalize_scope(
 
     identity_store = PostgresClaimIdentityStore() if store is None else store
     claims = identity_store.load_claims(scope_name)
-    return canonicalize(
-        prefilter_pairs(claims),
+    pending_claim_ids = tuple(
+        _integer_field(claim, "id")
+        for claim in claims
+        if _field(claim, "identity_checked_at", default=None) is None
+    )
+    if not pending_claim_ids:
+        return CanonicalizationResult(
+            pairs_compared=0,
+            canonical_claims=0,
+            merged_claims=0,
+        )
+    pending_id_set = set(pending_claim_ids)
+    eligible_pairs = [
+        pair
+        for pair in prefilter_pairs(claims)
+        if _integer_field(pair.left, "id") in pending_id_set
+        or _integer_field(pair.right, "id") in pending_id_set
+    ]
+    result = canonicalize(
+        eligible_pairs,
         complete_fn=complete_fn,
         store=identity_store,
     )
+    identity_store.mark_claims_checked(pending_claim_ids)
+    return result
 
 
 def _validated_duplicate_pairs(

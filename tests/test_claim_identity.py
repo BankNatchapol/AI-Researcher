@@ -431,6 +431,133 @@ def test_canonicalize_preserves_original_claims_and_repoints_all_evidence(
     assert {row["claim_id"] for row in stored_evidence} == {canonical_id}
 
 
+def test_negative_identity_decision_is_not_repeated_on_unchanged_rerun(
+    identity_database: Engine,
+) -> None:
+    from ai_researcher.db.models import claim, paper, paper_scope, section, tree_node
+    from ai_researcher.db.models import scope as scope_table
+    from ai_researcher.evidence.identity import (
+        PostgresClaimIdentityStore,
+        canonicalize_scope,
+    )
+
+    with identity_database.begin() as connection:
+        scope_id = int(
+            connection.execute(
+                insert(scope_table)
+                .values(
+                    name="surface-codes",
+                    description="Surface-code literature",
+                    include_terms=["surface code"],
+                    exclude_terms=[],
+                    categories=["quant-ph"],
+                    per_source_limit=10,
+                )
+                .returning(scope_table.c.id)
+            ).scalar_one()
+        )
+        claim_ids: list[int] = []
+        for paper_number, claim_text in (
+            (1, "The decoder lowered logical error rate to one percent."),
+            (2, "A different decoder also reached a one percent logical error rate."),
+        ):
+            paper_id = int(
+                connection.execute(
+                    insert(paper)
+                    .values(title=f"Paper {paper_number}", parse_status="parsed")
+                    .returning(paper.c.id)
+                ).scalar_one()
+            )
+            connection.execute(insert(paper_scope).values(paper_id=paper_id, scope_id=scope_id))
+            section_id = int(
+                connection.execute(
+                    insert(section)
+                    .values(
+                        paper_id=paper_id,
+                        section_path="Results",
+                        ordinal=0,
+                        body_text=claim_text,
+                    )
+                    .returning(section.c.id)
+                ).scalar_one()
+            )
+            tree_node_id = int(
+                connection.execute(
+                    insert(tree_node)
+                    .values(
+                        paper_id=paper_id,
+                        section_id=section_id,
+                        node_path="Results",
+                        summary=claim_text,
+                        depth=0,
+                        tree_schema_version="1",
+                        summary_model="codex",
+                    )
+                    .returning(tree_node.c.id)
+                ).scalar_one()
+            )
+            claim_ids.append(
+                int(
+                    connection.execute(
+                        insert(claim)
+                        .values(
+                            paper_id=paper_id,
+                            tree_node_id=tree_node_id,
+                            claim_text=claim_text,
+                            normalized_text=claim_text.lower(),
+                            claim_type="measurement",
+                            predicate="logical error rate",
+                            object_value=1.0,
+                            unit="%",
+                            extraction_model="codex",
+                            prompt_version="1",
+                        )
+                        .returning(claim.c.id)
+                    ).scalar_one()
+                )
+            )
+
+    model_calls: list[tuple[int, int]] = []
+
+    def distinct_claims(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        assert job == "claim_identity"
+        assert schema is not None
+        payload = json.loads(messages[-1]["content"])
+        compared_pair = payload["candidate_pairs"][0]
+        pair_ids = (compared_pair["left"]["id"], compared_pair["right"]["id"])
+        model_calls.append(pair_ids)
+        return {
+            "comparisons": [
+                {
+                    "left_id": pair_ids[0],
+                    "right_id": pair_ids[1],
+                    "same_claim": False,
+                }
+            ]
+        }
+
+    store = PostgresClaimIdentityStore(connection_factory=identity_database.begin)
+    initial = canonicalize_scope("surface-codes", complete_fn=distinct_claims, store=store)
+    with identity_database.connect() as connection:
+        rows_after_initial = connection.execute(select(claim).order_by(claim.c.id)).all()
+
+    rerun = canonicalize_scope("surface-codes", complete_fn=distinct_claims, store=store)
+    with identity_database.connect() as connection:
+        rows_after_rerun = connection.execute(select(claim).order_by(claim.c.id)).all()
+
+    assert initial.pairs_compared == 1
+    assert rerun.pairs_compared == 0
+    assert model_calls == [tuple(claim_ids)]
+    assert rows_after_rerun == rows_after_initial
+    with identity_database.connect() as connection:
+        checked_at = (
+            connection.execute(select(claim.c.identity_checked_at).order_by(claim.c.id))
+            .scalars()
+            .all()
+        )
+    assert all(value is not None for value in checked_at)
+
+
 def test_merging_existing_canonical_roots_repoints_descendants_to_final_root(
     identity_database: Engine,
 ) -> None:

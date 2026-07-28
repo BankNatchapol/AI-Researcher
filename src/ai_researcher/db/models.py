@@ -304,6 +304,7 @@ claim = Table(
         BigInteger,
         ForeignKey("claim.id", ondelete="SET NULL"),
     ),
+    Column("identity_checked_at", DateTime(timezone=True)),
     Column("extraction_model", Text, nullable=False),
     Column("prompt_version", Text, nullable=False),
     Column(
