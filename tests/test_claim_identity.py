@@ -316,19 +316,11 @@ def test_canonicalize_preserves_original_claims_and_repoints_all_evidence(
                     .returning(claim.c.id)
                 ).scalar_one()
             )
-            connection.execute(
-                insert(claim_evidence).values(
-                    claim_id=claim_id,
-                    tree_node_id=node_id,
-                    paper_id=paper_id,
-                    stance="supports",
-                    rationale_text=text,
-                )
-            )
             claim_rows.append(
                 {
                     "id": claim_id,
                     "paper_id": paper_id,
+                    "tree_node_id": node_id,
                     "claim_text": text,
                     "normalized_text": normalized,
                     "claim_type": "measurement",
@@ -337,6 +329,20 @@ def test_canonicalize_preserves_original_claims_and_repoints_all_evidence(
                     "unit": unit,
                 }
             )
+        connection.execute(
+            insert(claim_evidence),
+            [
+                {
+                    "claim_id": claim_row["id"],
+                    "tree_node_id": source_row["tree_node_id"],
+                    "paper_id": source_row["paper_id"],
+                    "stance": "supports",
+                    "rationale_text": source_row["claim_text"],
+                }
+                for claim_row in claim_rows
+                for source_row in claim_rows
+            ],
+        )
 
     canonical_id = claim_rows[0]["id"]
     canonicalize_scope(
@@ -367,6 +373,7 @@ def test_canonicalize_preserves_original_claims_and_repoints_all_evidence(
     assert stored_claims[1]["canonical_claim_id"] == canonical_id
     assert len(stored_evidence) == 2
     assert {row["paper_id"] for row in stored_evidence} == {row["paper_id"] for row in claim_rows}
+    assert len({row["paper_id"] for row in stored_evidence}) == len(stored_evidence)
     assert {row["claim_id"] for row in stored_evidence} == {canonical_id}
 
 
@@ -380,7 +387,7 @@ def test_extract_cli_canonicalizes_by_default_and_allows_opt_out(monkeypatch) ->
     monkeypatch.setattr(
         pipeline,
         "extract_scope",
-        lambda scope_name: ExtractScopeResult(extracted=0, skipped=0, failed=0),
+        lambda scope_name: ExtractScopeResult(extracted=1, skipped=0, failed=0),
     )
     monkeypatch.setattr(
         evidence_link,
@@ -403,3 +410,246 @@ def test_extract_cli_canonicalizes_by_default_and_allows_opt_out(monkeypatch) ->
     assert "Claim canonicalization complete: pairs=1 canonical=1 merged=1." in default_result.stdout
     assert disabled_result.exit_code == 0, disabled_result.output
     assert canonicalized_scopes == ["surface-codes"]
+
+
+def test_extract_rerun_does_no_identity_or_stance_work(
+    identity_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.cli import app
+    from ai_researcher.db.models import (
+        claim,
+        claim_evidence,
+        paper,
+        paper_scope,
+        section,
+        tree_node,
+    )
+    from ai_researcher.db.models import scope as scope_table
+    from ai_researcher.evidence import identity
+    from ai_researcher.evidence import link as evidence_link
+    from ai_researcher.extraction import pipeline
+    from ai_researcher.extraction.pipeline import ExtractScopeResult
+    from ai_researcher.llm import gateway
+    from ai_researcher.retrieval import RankedNode, TraversalResult, TraversalTrace
+
+    with identity_database.begin() as connection:
+        scope_id = int(
+            connection.execute(
+                insert(scope_table)
+                .values(
+                    name="surface-codes",
+                    description="Surface-code literature",
+                    include_terms=["surface code"],
+                    exclude_terms=[],
+                    categories=["quant-ph"],
+                    per_source_limit=10,
+                )
+                .returning(scope_table.c.id)
+            ).scalar_one()
+        )
+        claim_ids: list[int] = []
+        ranked_nodes: list[RankedNode] = []
+        for paper_number, text, normalized, value, unit in (
+            (
+                1,
+                "The decoder lowered logical error rate to one percent.",
+                "decoder lowers logical error rate",
+                1.0,
+                "%",
+            ),
+            (
+                2,
+                "Logical errors fell to 0.01 with the decoder.",
+                "decoder reduces logical errors",
+                0.01,
+                None,
+            ),
+        ):
+            paper_id = int(
+                connection.execute(
+                    insert(paper)
+                    .values(title=f"Paper {paper_number}", parse_status="parsed")
+                    .returning(paper.c.id)
+                ).scalar_one()
+            )
+            connection.execute(insert(paper_scope).values(paper_id=paper_id, scope_id=scope_id))
+            section_id = int(
+                connection.execute(
+                    insert(section)
+                    .values(
+                        paper_id=paper_id,
+                        section_path="Results",
+                        ordinal=0,
+                        body_text=text,
+                    )
+                    .returning(section.c.id)
+                ).scalar_one()
+            )
+            node_id = int(
+                connection.execute(
+                    insert(tree_node)
+                    .values(
+                        paper_id=paper_id,
+                        section_id=section_id,
+                        node_path="Results",
+                        summary=text,
+                        depth=0,
+                        tree_schema_version="1",
+                        summary_model="codex",
+                    )
+                    .returning(tree_node.c.id)
+                ).scalar_one()
+            )
+            claim_ids.append(
+                int(
+                    connection.execute(
+                        insert(claim)
+                        .values(
+                            paper_id=paper_id,
+                            tree_node_id=node_id,
+                            claim_text=text,
+                            normalized_text=normalized,
+                            claim_type="measurement",
+                            predicate="logical error rate",
+                            object_value=value,
+                            unit=unit,
+                            extraction_model="codex",
+                            prompt_version="1",
+                        )
+                        .returning(claim.c.id)
+                    ).scalar_one()
+                )
+            )
+            ranked_nodes.append(
+                RankedNode(
+                    node_id=node_id,
+                    paper_id=paper_id,
+                    section_path="Results",
+                    title=None,
+                    summary=text,
+                    page_start=1,
+                    page_end=1,
+                    relevance=100,
+                    reason="Relevant duplicate evidence.",
+                )
+            )
+
+    extraction_results = iter(
+        (
+            ExtractScopeResult(extracted=2, skipped=0, failed=0),
+            ExtractScopeResult(extracted=0, skipped=2, failed=0),
+        )
+    )
+    monkeypatch.setattr(pipeline, "extract_scope", lambda scope_name: next(extraction_results))
+    monkeypatch.setattr(
+        evidence_link,
+        "traverse",
+        lambda question, scope: TraversalResult(
+            ranked_nodes=tuple(ranked_nodes),
+            trace=TraversalTrace(
+                expanded_nodes=(),
+                selected_node_ids=tuple(node.node_id for node in ranked_nodes),
+                stopped_reason="sufficient_evidence",
+            ),
+        ),
+    )
+    model_jobs: list[str] = []
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        model_jobs.append(job)
+        payload = json.loads(messages[-1]["content"])
+        if job == "stance":
+            return {
+                "classifications": [
+                    {
+                        "node_id": candidate["node_id"],
+                        "stance": "supports",
+                        "rationale": candidate["body_text"],
+                    }
+                    for candidate in payload["candidate_nodes"]
+                ]
+            }
+        assert job == "claim_identity"
+        return {
+            "comparisons": [
+                {
+                    "left_id": pair["left"]["id"],
+                    "right_id": pair["right"]["id"],
+                    "same_claim": True,
+                }
+                for pair in payload["candidate_pairs"]
+            ]
+        }
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    evidence_writes: list[int] = []
+    identity_writes: list[int] = []
+    original_save_links = evidence_link.PostgresEvidenceStore.save_links
+    original_save_groups = identity.PostgresClaimIdentityStore.save_canonical_groups
+
+    def save_links(self, claim_id, links):
+        evidence_writes.append(claim_id)
+        return original_save_links(self, claim_id, links)
+
+    def save_groups(self, groups):
+        identity_writes.append(len(groups))
+        return original_save_groups(self, groups)
+
+    monkeypatch.setattr(evidence_link.PostgresEvidenceStore, "save_links", save_links)
+    monkeypatch.setattr(identity.PostgresClaimIdentityStore, "save_canonical_groups", save_groups)
+    runner = CliRunner()
+
+    initial = runner.invoke(app, ["extract", "surface-codes"])
+    assert initial.exit_code == 0, initial.output
+    assert model_jobs == ["stance", "stance", "claim_identity"]
+    assert evidence_writes == claim_ids
+    assert identity_writes == [1]
+
+    with identity_database.connect() as connection:
+        claims_before = connection.execute(
+            select(claim.c.id, claim.c.canonical_claim_id).order_by(claim.c.id)
+        ).all()
+        evidence_before = connection.execute(
+            select(
+                claim_evidence.c.id,
+                claim_evidence.c.claim_id,
+                claim_evidence.c.tree_node_id,
+                claim_evidence.c.paper_id,
+                claim_evidence.c.stance,
+                claim_evidence.c.rationale_text,
+            ).order_by(claim_evidence.c.id)
+        ).all()
+
+    model_jobs.clear()
+    evidence_writes.clear()
+    identity_writes.clear()
+    rerun = runner.invoke(app, ["extract", "surface-codes"])
+
+    assert rerun.exit_code == 0, rerun.output
+    assert model_jobs == []
+    assert evidence_writes == []
+    assert identity_writes == []
+    assert "Evidence linking complete: claims=0 links=0 failed=0." in rerun.stdout
+    assert "Claim canonicalization complete: pairs=0 canonical=0 merged=0." in rerun.stdout
+    with identity_database.connect() as connection:
+        assert (
+            connection.execute(
+                select(claim.c.id, claim.c.canonical_claim_id).order_by(claim.c.id)
+            ).all()
+            == claims_before
+        )
+        assert (
+            connection.execute(
+                select(
+                    claim_evidence.c.id,
+                    claim_evidence.c.claim_id,
+                    claim_evidence.c.tree_node_id,
+                    claim_evidence.c.paper_id,
+                    claim_evidence.c.stance,
+                    claim_evidence.c.rationale_text,
+                ).order_by(claim_evidence.c.id)
+            ).all()
+            == evidence_before
+        )

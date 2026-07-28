@@ -8,7 +8,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol, TypeAlias
 
-from sqlalchemy import Connection, select, update
+from sqlalchemy import Connection, delete, select, update
 
 from ai_researcher.db import connect
 from ai_researcher.db.models import claim as claim_table
@@ -99,7 +99,10 @@ class PostgresClaimIdentityStore:
                     )
                     .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
                     .join(scope_table, scope_table.c.id == paper_scope.c.scope_id)
-                    .where(scope_table.c.name == scope_name)
+                    .where(
+                        scope_table.c.name == scope_name,
+                        claim_table.c.canonical_claim_id.is_(None),
+                    )
                     .order_by(claim_table.c.id)
                 )
                 .mappings()
@@ -126,11 +129,47 @@ class PostgresClaimIdentityStore:
                         .where(claim_table.c.id.in_(duplicate_ids))
                         .values(canonical_claim_id=group.canonical_id)
                     )
-                connection.execute(
-                    update(claim_evidence_table)
-                    .where(claim_evidence_table.c.claim_id.in_(group.claim_ids))
-                    .values(claim_id=group.canonical_id)
+                evidence_rows = (
+                    connection.execute(
+                        select(
+                            claim_evidence_table.c.id,
+                            claim_evidence_table.c.claim_id,
+                            claim_evidence_table.c.paper_id,
+                        )
+                        .where(claim_evidence_table.c.claim_id.in_(group.claim_ids))
+                        .order_by(claim_evidence_table.c.id)
+                    )
+                    .mappings()
+                    .all()
                 )
+                ordered_evidence = sorted(
+                    evidence_rows,
+                    key=lambda row: (
+                        int(row["claim_id"]) != group.canonical_id,
+                        int(row["id"]),
+                    ),
+                )
+                kept_by_paper: dict[int, int] = {}
+                stale_evidence_ids: list[int] = []
+                for row in ordered_evidence:
+                    evidence_id = int(row["id"])
+                    paper_id = int(row["paper_id"])
+                    if paper_id in kept_by_paper:
+                        stale_evidence_ids.append(evidence_id)
+                    else:
+                        kept_by_paper[paper_id] = evidence_id
+                if stale_evidence_ids:
+                    connection.execute(
+                        delete(claim_evidence_table).where(
+                            claim_evidence_table.c.id.in_(stale_evidence_ids)
+                        )
+                    )
+                if kept_by_paper:
+                    connection.execute(
+                        update(claim_evidence_table)
+                        .where(claim_evidence_table.c.id.in_(kept_by_paper.values()))
+                        .values(claim_id=group.canonical_id)
+                    )
 
 
 def prefilter_pairs(claims: Iterable[ClaimLike]) -> list[ClaimPair]:
