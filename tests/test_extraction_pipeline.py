@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine, delete, func, insert, select
+from sqlalchemy import create_engine, delete, func, insert, select, update
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from typer.testing import CliRunner
@@ -411,3 +411,97 @@ def test_prompt_version_constant_exists() -> None:
 
     assert isinstance(PROMPT_VERSION, str)
     assert PROMPT_VERSION
+
+
+def test_every_persisted_record_type_carries_extraction_provenance(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.extraction import prompts
+    from ai_researcher.llm import gateway
+
+    _seed_scope_with_valid_section_fks(isolated_database)
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        assert job == "extraction"
+        payload = json.loads(messages[-1]["content"])
+        node_ids = [
+            node["tree_node_id"] for group in payload["section_groups"] for node in group["nodes"]
+        ]
+        return _extraction_payload(node_ids, model="untrusted-model", version="stale")
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+
+    completed = CliRunner().invoke(app, ["extract", "surface-codes"])
+
+    assert completed.exit_code == 0, completed.output
+    with isolated_database.connect() as connection:
+        for extraction_table in (claim, method, result, dataset, metric):
+            rows = connection.execute(
+                select(
+                    extraction_table.c.extraction_model,
+                    extraction_table.c.prompt_version,
+                )
+            ).all()
+            assert rows
+            assert all(row.extraction_model == "codex" for row in rows)
+            assert all(row.prompt_version == prompts.PROMPT_VERSION for row in rows)
+
+
+def test_prompt_version_bump_reextracts_only_stale_papers(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.extraction import prompts
+    from ai_researcher.llm import gateway
+
+    parsed_id, abstract_id, _, _ = _seed_scope_with_valid_section_fks(isolated_database)
+    called_paper_ids: list[int] = []
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        assert job == "extraction"
+        payload = json.loads(messages[-1]["content"])
+        called_paper_ids.append(int(payload["paper"]["id"]))
+        node_ids = [
+            node["tree_node_id"] for group in payload["section_groups"] for node in group["nodes"]
+        ]
+        return _extraction_payload(node_ids)
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    runner = CliRunner()
+    initial = runner.invoke(app, ["extract", "surface-codes"])
+    assert initial.exit_code == 0, initial.output
+
+    with isolated_database.begin() as connection:
+        for extraction_table in (claim, method, result, dataset, metric):
+            connection.execute(
+                update(extraction_table)
+                .where(extraction_table.c.paper_id == abstract_id)
+                .values(prompt_version="2")
+            )
+
+    monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
+    called_paper_ids.clear()
+
+    bumped = runner.invoke(app, ["extract", "surface-codes"])
+
+    assert bumped.exit_code == 0, bumped.output
+    assert "extracted 1" in bumped.stdout
+    assert "skipped 1" in bumped.stdout
+    assert called_paper_ids == [parsed_id]
+
+    with isolated_database.connect() as connection:
+        for extraction_table in (claim, method, result, dataset, metric):
+            versions_by_paper = connection.execute(
+                select(
+                    extraction_table.c.paper_id,
+                    extraction_table.c.prompt_version,
+                )
+            ).all()
+            assert versions_by_paper
+            assert {(row.paper_id, row.prompt_version) for row in versions_by_paper} == {
+                (parsed_id, "2"),
+                (abstract_id, "2"),
+            }
