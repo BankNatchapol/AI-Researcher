@@ -193,6 +193,18 @@ def test_link_evidence_rejects_non_verbatim_rationale_before_persistence() -> No
     assert [link.tree_node_id for link in store.saved] == [11]
 
 
+def test_verbatim_span_preserves_exact_source_whitespace() -> None:
+    from ai_researcher.evidence.link import _verbatim_span
+
+    body_text = "The decoder lowers\n  the logical error rate by 20 percent."
+    model_rationale = "The decoder lowers the logical error rate by 20 percent."
+
+    rationale_text = _verbatim_span(body_text, model_rationale)
+
+    assert rationale_text == "The decoder lowers\n  the logical error rate by 20 percent."
+    assert rationale_text in body_text
+
+
 def test_link_evidence_batches_every_candidate_in_one_stance_call() -> None:
     from ai_researcher.evidence import link as evidence_link
 
