@@ -214,6 +214,60 @@ def test_canonicalize_batches_only_prefiltered_pairs_into_one_model_call() -> No
     assert result.merged_claims == 1
 
 
+def test_canonicalize_does_not_bridge_non_prefiltered_numeric_endpoints() -> None:
+    from ai_researcher.evidence.identity import canonicalize, prefilter_pairs
+
+    claims = [
+        {
+            "id": claim_id,
+            "paper_id": 100 + claim_id,
+            "claim_text": f"Logical error rate was {value}.",
+            "normalized_text": "logical error rate measurement",
+            "claim_type": "measurement",
+            "predicate": "logical error rate",
+            "object_value": value,
+            "unit": None,
+        }
+        for claim_id, value in ((1, 0.94), (2, 1.0), (3, 1.06))
+    ]
+    pairs = prefilter_pairs(claims)
+    compared_pairs: list[tuple[int, int]] = []
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        assert job == "claim_identity"
+        assert schema is not None
+        payload = json.loads(messages[-1]["content"])
+        compared_pairs.extend(
+            (candidate["left"]["id"], candidate["right"]["id"])
+            for candidate in payload["candidate_pairs"]
+        )
+        return {
+            "comparisons": [
+                {
+                    "left_id": left_id,
+                    "right_id": right_id,
+                    "same_claim": True,
+                }
+                for left_id, right_id in compared_pairs
+            ]
+        }
+
+    class MemoryIdentityStore:
+        def __init__(self) -> None:
+            self.groups: list[Any] = []
+
+        def save_canonical_groups(self, groups: list[Any]) -> None:
+            self.groups = list(groups)
+
+    store = MemoryIdentityStore()
+    result = canonicalize(pairs, complete_fn=fake_complete, store=store)
+
+    assert compared_pairs == [(1, 2), (2, 3)]
+    assert [(group.canonical_id, group.claim_ids) for group in store.groups] == [(1, (1, 2))]
+    assert result.canonical_claims == 1
+    assert result.merged_claims == 1
+
+
 def test_canonicalize_preserves_original_claims_and_repoints_all_evidence(
     identity_database: Engine,
 ) -> None:
@@ -375,6 +429,100 @@ def test_canonicalize_preserves_original_claims_and_repoints_all_evidence(
     assert {row["paper_id"] for row in stored_evidence} == {row["paper_id"] for row in claim_rows}
     assert len({row["paper_id"] for row in stored_evidence}) == len(stored_evidence)
     assert {row["claim_id"] for row in stored_evidence} == {canonical_id}
+
+
+def test_merging_existing_canonical_roots_repoints_descendants_to_final_root(
+    identity_database: Engine,
+) -> None:
+    from ai_researcher.db.models import claim, paper, section, tree_node
+    from ai_researcher.evidence.identity import CanonicalGroup, PostgresClaimIdentityStore
+
+    claim_ids: list[int] = []
+    with identity_database.begin() as connection:
+        for paper_number in range(1, 4):
+            text = f"Paper {paper_number} reports a logical error rate."
+            paper_id = int(
+                connection.execute(
+                    insert(paper)
+                    .values(title=f"Paper {paper_number}", parse_status="parsed")
+                    .returning(paper.c.id)
+                ).scalar_one()
+            )
+            section_id = int(
+                connection.execute(
+                    insert(section)
+                    .values(
+                        paper_id=paper_id,
+                        section_path="Results",
+                        ordinal=0,
+                        body_text=text,
+                    )
+                    .returning(section.c.id)
+                ).scalar_one()
+            )
+            node_id = int(
+                connection.execute(
+                    insert(tree_node)
+                    .values(
+                        paper_id=paper_id,
+                        section_id=section_id,
+                        node_path="Results",
+                        summary=text,
+                        depth=0,
+                        tree_schema_version="1",
+                        summary_model="codex",
+                    )
+                    .returning(tree_node.c.id)
+                ).scalar_one()
+            )
+            claim_ids.append(
+                int(
+                    connection.execute(
+                        insert(claim)
+                        .values(
+                            paper_id=paper_id,
+                            tree_node_id=node_id,
+                            claim_text=text,
+                            normalized_text="logical error rate measurement",
+                            claim_type="measurement",
+                            predicate="logical error rate",
+                            object_value=0.01,
+                            extraction_model="codex",
+                            prompt_version="1",
+                        )
+                        .returning(claim.c.id)
+                    ).scalar_one()
+                )
+            )
+
+    store = PostgresClaimIdentityStore(connection_factory=identity_database.begin)
+    store.save_canonical_groups(
+        [
+            CanonicalGroup(
+                canonical_id=claim_ids[1],
+                claim_ids=(claim_ids[1], claim_ids[2]),
+            )
+        ]
+    )
+    store.save_canonical_groups(
+        [
+            CanonicalGroup(
+                canonical_id=claim_ids[0],
+                claim_ids=(claim_ids[0], claim_ids[1]),
+            )
+        ]
+    )
+
+    with identity_database.connect() as connection:
+        canonical_links = connection.execute(
+            select(claim.c.id, claim.c.canonical_claim_id).order_by(claim.c.id)
+        ).all()
+
+    assert canonical_links == [
+        (claim_ids[0], None),
+        (claim_ids[1], claim_ids[0]),
+        (claim_ids[2], claim_ids[0]),
+    ]
 
 
 def test_extract_cli_canonicalizes_by_default_and_allows_opt_out(monkeypatch) -> None:

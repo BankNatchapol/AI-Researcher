@@ -8,7 +8,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol, TypeAlias
 
-from sqlalchemy import Connection, delete, select, update
+from sqlalchemy import Connection, delete, or_, select, update
 
 from ai_researcher.db import connect
 from ai_researcher.db.models import claim as claim_table
@@ -126,7 +126,12 @@ class PostgresClaimIdentityStore:
                 if duplicate_ids:
                     connection.execute(
                         update(claim_table)
-                        .where(claim_table.c.id.in_(duplicate_ids))
+                        .where(
+                            or_(
+                                claim_table.c.id.in_(duplicate_ids),
+                                claim_table.c.canonical_claim_id.in_(duplicate_ids),
+                            )
+                        )
                         .values(canonical_claim_id=group.canonical_id)
                     )
                 evidence_rows = (
@@ -300,26 +305,38 @@ def _validated_duplicate_pairs(
 
 def _canonical_groups(duplicate_pairs: list[tuple[int, int]]) -> list[CanonicalGroup]:
     parent: dict[int, int] = {}
+    members: dict[int, set[int]] = {}
+    accepted_pairs = {
+        (min(left_id, right_id), max(left_id, right_id)) for left_id, right_id in duplicate_pairs
+    }
 
     def find(claim_id: int) -> int:
         parent.setdefault(claim_id, claim_id)
+        members.setdefault(claim_id, {claim_id})
         while parent[claim_id] != claim_id:
             parent[claim_id] = parent[parent[claim_id]]
             claim_id = parent[claim_id]
         return claim_id
 
-    for left_id, right_id in duplicate_pairs:
+    for left_id, right_id in sorted(accepted_pairs):
         left_root = find(left_id)
         right_root = find(right_id)
-        if left_root != right_root:
-            parent[max(left_root, right_root)] = min(left_root, right_root)
+        if left_root == right_root:
+            continue
+        if not all(
+            (min(left_member, right_member), max(left_member, right_member)) in accepted_pairs
+            for left_member in members[left_root]
+            for right_member in members[right_root]
+        ):
+            continue
+        new_root = min(left_root, right_root)
+        old_root = max(left_root, right_root)
+        parent[old_root] = new_root
+        members[new_root].update(members.pop(old_root))
 
-    members_by_root: dict[int, list[int]] = {}
-    for claim_id in sorted(parent):
-        members_by_root.setdefault(find(claim_id), []).append(claim_id)
     return [
-        CanonicalGroup(canonical_id=min(claim_ids), claim_ids=tuple(sorted(claim_ids)))
-        for claim_ids in members_by_root.values()
+        CanonicalGroup(canonical_id=root, claim_ids=tuple(sorted(claim_ids)))
+        for root, claim_ids in sorted(members.items())
         if len(claim_ids) > 1
     ]
 
