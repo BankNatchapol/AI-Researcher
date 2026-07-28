@@ -272,9 +272,12 @@ def test_extract_paper_batches_one_call_per_paper_not_per_node() -> None:
     calls: list[tuple[str, dict | None]] = []
 
     def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
-        del messages
         calls.append((job, schema))
-        return _extraction_payload([101, 102, 103, 104, 105], version=PROMPT_VERSION)
+        payload = json.loads(messages[-1]["content"])
+        assert "nodes" not in payload
+        groups = payload["section_groups"]
+        node_ids = [node["tree_node_id"] for group in groups for node in group["nodes"]]
+        return _extraction_payload(node_ids, version=PROMPT_VERSION)
 
     result = extract_paper(
         PaperExtractionInput(
@@ -320,7 +323,9 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
         call_count += 1
         payload = json.loads(messages[-1]["content"])
         paper_payload = payload["paper"]
-        node_ids = [item["tree_node_id"] for item in payload["nodes"]]
+        node_ids = [
+            node["tree_node_id"] for group in payload["section_groups"] for node in group["nodes"]
+        ]
         if fail_paper_id is not None and int(paper_payload["id"]) == fail_paper_id:
             raise RuntimeError("simulated extraction failure")
         return _extraction_payload(node_ids, version=prompts.PROMPT_VERSION)

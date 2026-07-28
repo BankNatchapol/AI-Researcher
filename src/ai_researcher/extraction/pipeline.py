@@ -291,20 +291,6 @@ def extract_paper(
         "instructions": prompts.EXTRACTION_INSTRUCTIONS,
         "prompt_version": version,
         "section_groups": _section_groups(paper_input.nodes),
-        # Flat node list for callers/tests that inspect node ids without grouping.
-        "nodes": [
-            {
-                "tree_node_id": node.id,
-                "node_path": node.node_path,
-                "title": node.title,
-                "summary": node.summary,
-                "page_start": node.page_start,
-                "page_end": node.page_end,
-                "depth": node.depth,
-                "body_text": node.body_text,
-            }
-            for node in paper_input.nodes
-        ],
     }
 
     def fetch() -> Any:
