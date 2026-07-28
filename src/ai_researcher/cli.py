@@ -157,7 +157,14 @@ def index_scope(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None:
 
 
 @app.command("extract")
-def extract_corpus(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> None:
+def extract_corpus(
+    scope_name: str = typer.Argument(..., metavar="SCOPE"),
+    link_evidence_enabled: bool = typer.Option(
+        True,
+        "--link-evidence/--no-link-evidence",
+        help="Link extracted claims to supporting and refuting passages.",
+    ),
+) -> None:
     """Extract claims, methods, results, datasets, and metrics for a saved scope."""
 
     from ai_researcher.extraction import pipeline
@@ -180,6 +187,16 @@ def extract_corpus(scope_name: str = typer.Argument(..., metavar="SCOPE")) -> No
         f"Extract complete: extracted {result.extracted}, "
         f"skipped {result.skipped}, failed {result.failed}."
     )
+    if link_evidence_enabled:
+        from ai_researcher.evidence import link as evidence_link
+
+        link_result = evidence_link.link_scope_evidence(scope_name)
+        typer.echo(
+            "Evidence linking complete: "
+            f"claims={link_result.claims_linked} "
+            f"links={link_result.evidence_links} "
+            f"failed={link_result.failed}."
+        )
 
 
 @app.command("ask")
