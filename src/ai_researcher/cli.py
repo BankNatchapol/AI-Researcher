@@ -164,6 +164,11 @@ def extract_corpus(
         "--link-evidence/--no-link-evidence",
         help="Link extracted claims to supporting and refuting passages.",
     ),
+    dedup_enabled: bool = typer.Option(
+        True,
+        "--dedup/--no-dedup",
+        help="Canonicalize duplicate claims after evidence linking.",
+    ),
 ) -> None:
     """Extract claims, methods, results, datasets, and metrics for a saved scope."""
 
@@ -196,6 +201,16 @@ def extract_corpus(
             f"claims={link_result.claims_linked} "
             f"links={link_result.evidence_links} "
             f"failed={link_result.failed}."
+        )
+    if dedup_enabled:
+        from ai_researcher.evidence import identity
+
+        identity_result = identity.canonicalize_scope(scope_name)
+        typer.echo(
+            "Claim canonicalization complete: "
+            f"pairs={identity_result.pairs_compared} "
+            f"canonical={identity_result.canonical_claims} "
+            f"merged={identity_result.merged_claims}."
         )
 
 

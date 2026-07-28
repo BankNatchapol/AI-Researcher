@@ -320,10 +320,10 @@ def test_extract_cli_links_evidence_by_default_and_allows_opt_out(monkeypatch) -
     monkeypatch.setattr(evidence_link, "link_scope_evidence", fake_link_scope)
     runner = CliRunner()
 
-    default_result = runner.invoke(app, ["extract", "surface-codes"])
+    default_result = runner.invoke(app, ["extract", "surface-codes", "--no-dedup"])
     disabled_result = runner.invoke(
         app,
-        ["extract", "surface-codes", "--no-link-evidence"],
+        ["extract", "surface-codes", "--no-link-evidence", "--no-dedup"],
     )
 
     assert default_result.exit_code == 0, default_result.output
