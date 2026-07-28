@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine, insert, select
+from sqlalchemy import create_engine, event, insert, select
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from typer.testing import CliRunner
@@ -541,13 +541,32 @@ def test_negative_identity_decision_is_not_repeated_on_unchanged_rerun(
     with identity_database.connect() as connection:
         rows_after_initial = connection.execute(select(claim).order_by(claim.c.id)).all()
 
-    rerun = canonicalize_scope("surface-codes", complete_fn=distinct_claims, store=store)
+    write_statements: list[str] = []
+
+    def record_writes(
+        connection,
+        cursor,
+        statement: str,
+        parameters,
+        context,
+        executemany: bool,
+    ) -> None:
+        del connection, cursor, parameters, context, executemany
+        if statement.lstrip().partition(" ")[0].upper() in {"DELETE", "INSERT", "UPDATE"}:
+            write_statements.append(statement)
+
+    event.listen(identity_database, "before_cursor_execute", record_writes)
+    try:
+        rerun = canonicalize_scope("surface-codes", complete_fn=distinct_claims, store=store)
+    finally:
+        event.remove(identity_database, "before_cursor_execute", record_writes)
     with identity_database.connect() as connection:
         rows_after_rerun = connection.execute(select(claim).order_by(claim.c.id)).all()
 
     assert initial.pairs_compared == 1
     assert rerun.pairs_compared == 0
     assert model_calls == [tuple(claim_ids)]
+    assert write_statements == []
     assert rows_after_rerun == rows_after_initial
     with identity_database.connect() as connection:
         checked_at = (
@@ -556,6 +575,92 @@ def test_negative_identity_decision_is_not_repeated_on_unchanged_rerun(
             .all()
         )
     assert all(value is not None for value in checked_at)
+
+
+def test_unchecked_claim_compares_with_checked_roots_without_rechecking_old_pair() -> None:
+    from ai_researcher.evidence.identity import canonicalize_scope
+
+    claims = (
+        {
+            "id": 1,
+            "paper_id": 101,
+            "claim_text": "Decoder A reached a one percent logical error rate.",
+            "normalized_text": "decoder a logical error rate",
+            "claim_type": "measurement",
+            "predicate": "logical error rate",
+            "object_value": 1.0,
+            "unit": "%",
+            "identity_checked_at": "already-checked",
+        },
+        {
+            "id": 2,
+            "paper_id": 202,
+            "claim_text": "Decoder B reached a one percent logical error rate.",
+            "normalized_text": "decoder b logical error rate",
+            "claim_type": "measurement",
+            "predicate": "logical error rate",
+            "object_value": 1.0,
+            "unit": "%",
+            "identity_checked_at": "already-checked",
+        },
+        {
+            "id": 3,
+            "paper_id": 303,
+            "claim_text": "Decoder C reached a one percent logical error rate.",
+            "normalized_text": "decoder c logical error rate",
+            "claim_type": "measurement",
+            "predicate": "logical error rate",
+            "object_value": 1.0,
+            "unit": "%",
+            "identity_checked_at": None,
+        },
+    )
+    compared_pairs: list[tuple[int, int]] = []
+
+    class MemoryIdentityStore:
+        def __init__(self) -> None:
+            self.marked_claim_ids: list[tuple[int, ...]] = []
+
+        def load_claims(self, scope_name: str):
+            assert scope_name == "surface-codes"
+            return claims
+
+        def mark_claims_checked(self, claim_ids) -> None:
+            self.marked_claim_ids.append(tuple(claim_ids))
+
+        def save_canonical_groups(self, groups) -> None:
+            assert groups == []
+
+    def distinct_claims(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        assert job == "claim_identity"
+        assert schema is not None
+        payload = json.loads(messages[-1]["content"])
+        compared_pairs.extend(
+            (candidate["left"]["id"], candidate["right"]["id"])
+            for candidate in payload["candidate_pairs"]
+        )
+        return {
+            "comparisons": [
+                {
+                    "left_id": left_id,
+                    "right_id": right_id,
+                    "same_claim": False,
+                }
+                for left_id, right_id in compared_pairs
+            ]
+        }
+
+    store = MemoryIdentityStore()
+    result = canonicalize_scope(
+        "surface-codes",
+        complete_fn=distinct_claims,
+        store=store,
+    )
+
+    assert compared_pairs == [(1, 3), (2, 3)]
+    assert (1, 2) not in compared_pairs
+    assert store.marked_claim_ids == [(3,)]
+    assert result.pairs_compared == 2
 
 
 def test_merging_existing_canonical_roots_repoints_descendants_to_final_root(
