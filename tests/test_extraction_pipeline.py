@@ -412,6 +412,45 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
     assert "skipped 1" in fourth.stdout or "extracted 0" in fourth.stdout
 
 
+def test_paper_failure_does_not_abort_remaining_stale_papers(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_researcher.llm import gateway
+
+    parsed_id, abstract_id, _, abstract_nodes = _seed_scope_with_valid_section_fks(
+        isolated_database
+    )
+    called_paper_ids: list[int] = []
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        assert job == "extraction"
+        payload = json.loads(messages[-1]["content"])
+        paper_id = int(payload["paper"]["id"])
+        called_paper_ids.append(paper_id)
+        if paper_id == parsed_id:
+            raise RuntimeError("simulated first-paper failure")
+        node_ids = [
+            node["tree_node_id"] for group in payload["section_groups"] for node in group["nodes"]
+        ]
+        return _extraction_payload(node_ids)
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+
+    completed = CliRunner().invoke(app, ["extract", "surface-codes"])
+
+    assert completed.exit_code == 0, completed.output
+    assert "extracted 1" in completed.stdout
+    assert "failed 1" in completed.stdout
+    assert called_paper_ids == [parsed_id, parsed_id, abstract_id]
+    with isolated_database.connect() as connection:
+        persisted = connection.execute(select(claim.c.paper_id, claim.c.tree_node_id)).all()
+    assert {(row.paper_id, row.tree_node_id) for row in persisted} == {
+        (abstract_id, abstract_nodes[0])
+    }
+
+
 def test_prompt_version_constant_exists() -> None:
     from ai_researcher.extraction.prompts import PROMPT_VERSION
 
