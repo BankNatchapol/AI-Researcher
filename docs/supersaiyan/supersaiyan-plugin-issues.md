@@ -279,6 +279,51 @@ fires.
 
 ---
 
+## 9. `rebuild_cap`'s counter never resets after human authorization, and appears to ignore root-cause-hash matching
+
+**What happened:** Issue #46 hit `rebuild_cap` (2) and blocked. A human read the finding,
+confirmed it was real, and authorized a rebuild by dragging the card back to Ready. The
+rebuild produced a **different, unrelated defect** — verified by direct code comparison,
+not assumed — yet the Reviewer blocked again citing the same "rebuild cap exhausted"
+reasoning, and the dashboard still showed `attempt 3/3`.
+
+The plugin's own reference doc (`references/run.md`) states the cap gate is keyed on
+repetition:
+
+> "Two consecutive failures on the same card with **identical hash** AND **same lane**
+> count as the same root cause. Hits `rebuild_cap` → Blocked."
+
+But the two actual blocks on this issue carried **different** `root-cause-hash` values
+(`e62d665b7fee` for the first defect, `c5067e033f1e` for the second, confirmed genuinely
+distinct by reading the code both times) — yet both triggered the same cap-exhaustion
+block. Either the cap is really a raw cumulative attempt ceiling regardless of hash, and the
+"identical hash" language describes something else (perhaps just root-cause grouping for
+messaging purposes), or the Reviewer isn't following its own documented nuance.
+
+Separately: **nothing in the plugin resets or removes the `loop:rebuild-N` label after a
+human authorizes continuing past the cap.** The label is a plain monotonic counter,
+incremented on every rebuild bounce, permanent for the issue's lifetime. This means every
+subsequent failure on the same card — even a brand-new, unrelated third defect — is likely
+to immediately re-trigger the cap block and require another human authorization comment,
+regardless of how many genuinely different bugs get found and fixed along the way.
+
+**Status: open — not a project-level workaround, a plugin design gap.** Working as
+documented is arguably fine (repeat human sign-off on every subsequent rebuild is a
+defensible safety posture), but the mismatch between the "identical hash" language and the
+observed cross-defect blocking behavior is confusing, and there is no supported mechanism
+to signal "a human already reviewed this once; give it a fresh cap" versus "require sign-off
+again every time."
+
+**Upstream fix needed:** either (a) make the cap gate genuinely hash-aware — only block on
+a repeated identical root cause, letting a verified-distinct new defect get a fresh attempt
+budget — matching what the doc already claims it does, or (b) if a cumulative-regardless-
+of-hash ceiling is the intended design, document that plainly instead of the
+"identical hash" language, and give the human-authorization flow an explicit way to reset
+the counter (e.g. a `loop:human-authorized` label the Reviewer checks before re-blocking on
+an otherwise-fresh finding).
+
+---
+
 ## Summary table
 
 | # | Problem | Status | Where the fix lives |
@@ -292,6 +337,7 @@ fires.
 | 6 | Fixed-tick polling exhausts GraphQL quota | Fixed, measured live (6s vs 600s) | Event-driven dispatch |
 | 7 | No backend abstraction — dispatcher forked per tool | Working, but duplicated | Needs `Backend` interface |
 | 8 | Orphan-guard pattern never matched real Cursor workers | Fixed, verified against a live process | Pattern + regression test |
+| 9 | `rebuild_cap` never resets after human authorization; blocks fire regardless of hash | **Open** | Needs hash-aware cap gate or documented reset mechanism |
 
 Items with no "upstream" location are things that had to be re-solved per project because
 the fix lives in this repo's scripts/config rather than in the SuperSaiyan plugin itself.
