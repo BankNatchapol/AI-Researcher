@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from ai_researcher.cli import app
@@ -43,6 +44,7 @@ def _memory_store(module: Any, nodes: list[Any]) -> Any:
         def __init__(self) -> None:
             self.nodes = {node.node_id: node for node in nodes}
             self.saved: list[Any] = []
+            self.save_calls = 0
 
         def resolve_scope(self, claim: Any) -> str:
             del claim
@@ -53,6 +55,7 @@ def _memory_store(module: Any, nodes: list[Any]) -> Any:
 
         def save_links(self, claim_id: int, links: list[Any]) -> list[Any]:
             assert claim_id == 7
+            self.save_calls += 1
             self.saved = list(links)
             return list(links)
 
@@ -191,6 +194,55 @@ def test_link_evidence_rejects_non_verbatim_rationale_before_persistence() -> No
     assert [link.tree_node_id for link in links] == [11]
     assert links[0].rationale_text in nodes[0].body_text
     assert [link.tree_node_id for link in store.saved] == [11]
+
+
+def test_link_evidence_rejects_incomplete_batch_without_persistence() -> None:
+    from ai_researcher.evidence import link as evidence_link
+
+    claim = {"id": 7, "paper_id": 101, "normalized_text": "decoder improves accuracy"}
+    nodes = [
+        evidence_link.CandidateNode(
+            node_id=11,
+            paper_id=101,
+            body_text="The decoder improves accuracy by five percent.",
+        ),
+        evidence_link.CandidateNode(
+            node_id=22,
+            paper_id=202,
+            body_text="The independent evaluation found no measurable improvement.",
+        ),
+    ]
+    store = _memory_store(evidence_link, nodes)
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del messages, schema
+        assert job == "stance"
+        return {
+            "classifications": [
+                {
+                    "node_id": 11,
+                    "stance": "supports",
+                    "rationale": "The decoder improves accuracy by five percent.",
+                }
+            ]
+        }
+
+    with pytest.raises(
+        evidence_link.EvidenceLinkingError,
+        match="classify every candidate node exactly once",
+    ):
+        evidence_link.link_evidence(
+            claim,
+            traverse_fn=lambda question, scope: _traversal(
+                _ranked_node(11, 101),
+                _ranked_node(22, 202),
+            ),
+            complete_fn=fake_complete,
+            store=store,
+        )
+
+    assert store.save_calls == 0
+    assert store.saved == []
 
 
 def test_verbatim_span_preserves_exact_source_whitespace() -> None:

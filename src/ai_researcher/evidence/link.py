@@ -347,18 +347,19 @@ def _validated_links(
     links: list[ClaimEvidence] = []
     for classification in classifications:
         if not isinstance(classification, dict):
-            continue
+            raise EvidenceLinkingError("Stance model returned an invalid classification")
         node_id = classification.get("node_id")
         stance = classification.get("stance")
         rationale = classification.get("rationale")
         if (
-            not isinstance(node_id, int)
+            isinstance(node_id, bool)
+            or not isinstance(node_id, int)
             or node_id in seen_node_ids
             or node_id not in candidates_by_id
             or stance not in {"supports", "refutes", "mentions"}
             or not isinstance(rationale, str)
         ):
-            continue
+            raise EvidenceLinkingError("Stance model returned an invalid classification")
         seen_node_ids.add(node_id)
         candidate = candidates_by_id[node_id]
         verbatim_rationale = _verbatim_span(candidate.body_text, rationale)
@@ -378,6 +379,8 @@ def _validated_links(
                 rationale_text=verbatim_rationale,
             )
         )
+    if seen_node_ids != set(candidates_by_id):
+        raise EvidenceLinkingError("Stance model must classify every candidate node exactly once")
     return links
 
 
