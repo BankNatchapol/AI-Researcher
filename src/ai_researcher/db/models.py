@@ -425,6 +425,25 @@ metric = Table(
     ),
 )
 
+paper_extraction_state = Table(
+    "paper_extraction_state",
+    metadata,
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("extraction_model", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column(
+        "completed_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
 claim_evidence = Table(
     "claim_evidence",
     metadata,
@@ -493,6 +512,7 @@ __all__ = [
     "metric",
     "paper",
     "paper_author",
+    "paper_extraction_state",
     "paper_scope",
     "paper_source",
     "result",
