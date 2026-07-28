@@ -40,7 +40,7 @@ running the stated command, not by inspection.
 |-------|------|------|
 | 1 — Foundation & Corpus Ingestion | Codex | manual |
 | 2 — Vectorless Tree Retrieval & Grounded Q&A | Codex | manual |
-| 3 — Structured Extraction & Dual Scoring | Cursor | manual |
+| 3 — Structured Extraction & Dual Scoring | Codex | manual |
 | 4 — Monitoring, Discourse & Temporal Digests | Cursor | manual |
 
 Phases run manually by default: pick up the issue, build it, verify acceptance criteria,

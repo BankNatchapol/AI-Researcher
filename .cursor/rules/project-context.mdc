@@ -24,12 +24,12 @@ when every acceptance criterion passes by running its stated command.
 Tasks form a strict chain via `depends_on_task` frontmatter. Do not start a task whose
 predecessor has not merged.
 
-## Cursor owns phases 3 and 4
+## Cursor owns phase 4
 
-- Phase 3 — Structured Extraction & Dual Scoring
 - Phase 4 — Monitoring, Discourse & Temporal Digests
 
-Codex owns phases 1–2. These run manually — no autonomous loop moves board cards.
+Codex owns phases 1–3 (moved from Cursor once Codex tokens were available). These run
+manually — no autonomous loop moves board cards.
 Board: https://github.com/users/BankNatchapol/projects/6
 
 ## Stack
