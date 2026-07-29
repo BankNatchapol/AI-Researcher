@@ -307,20 +307,58 @@ subsequent failure on the same card — even a brand-new, unrelated third defect
 to immediately re-trigger the cap block and require another human authorization comment,
 regardless of how many genuinely different bugs get found and fixed along the way.
 
-**Status: open — not a project-level workaround, a plugin design gap.** Working as
-documented is arguably fine (repeat human sign-off on every subsequent rebuild is a
-defensible safety posture), but the mismatch between the "identical hash" language and the
-observed cross-defect blocking behavior is confusing, and there is no supported mechanism
-to signal "a human already reviewed this once; give it a fresh cap" versus "require sign-off
-again every time."
+**Status: fixed in the plugin itself** (commits `0228880`, `5fc09c7` in
+`BankNatchapol/SuperSaiyan`, local only — not yet pushed as of this writing). Two changes:
 
-**Upstream fix needed:** either (a) make the cap gate genuinely hash-aware — only block on
-a repeated identical root cause, letting a verified-distinct new defect get a fresh attempt
-budget — matching what the doc already claims it does, or (b) if a cumulative-regardless-
-of-hash ceiling is the intended design, document that plainly instead of the
-"identical hash" language, and give the human-authorization flow an explicit way to reset
-the counter (e.g. a `loop:human-authorized` label the Reviewer checks before re-blocking on
-an otherwise-fresh finding).
+1. **Enforced the hash-aware reset the doc already claimed to have.** The rule ("different
+   hash resets the counter") existed in prose but wasn't being applied at the actual decision
+   point. Moved it inline into the halt-gates table and the Reviewer's step-7 decision list as
+   an explicit comparison step. **Verified working, live, on the same project:** issue #47
+   went through 4 rebuilds — verbatim-overlap ordering, cross-paper replication leak, unwired
+   repeated-extraction data, stale confidence refresh — four genuinely distinct defects, and
+   the Reviewer's own comments now show an explicit "Cap audit: prior hash X; current hash Y
+   differs, so this is progress" line before routing each one onward instead of blocking.
+
+2. **Added `config.absolute_rebuild_ceiling` (default 4) as a second, independent gate.**
+   Fixing (1) alone removed the *only* ceiling that existed — a card producing genuinely
+   different failures could now rebuild unattended forever, with no human checkpoint ever
+   forced, burning real subscription-backed model calls indefinitely. This surfaced as a
+   direct user concern after watching #47 sail through 4 rebuilds: the hash-aware fix was
+   correct, but it traded a guaranteed (if occasionally over-eager) ceiling for no ceiling at
+   all. The new gate checks a hard total regardless of hash, restoring the bounded-attempts
+   guarantee while keeping the false-positive fix.
+
+**Also found while fixing this:** `run.md` and `config-schema.json` each exist in **two
+copies** in the plugin — under `skills/super-board/references/` (read by the Codex/Cursor
+external dispatcher forks) and `skills/supersaiyan/references/` (read by Claude Code's native
+`/supersaiyan run`). The first hash-aware patch was only applied to the `super-board` copy
+initially; the `supersaiyan` copy silently had neither fix until this was caught and both
+copies were patched identically. Any future change to lane-lifecycle behavior needs to touch
+both, or the two dispatch paths will quietly diverge.
+
+---
+
+## 10. `run.md` and `config-schema.json` each exist as two silently-divergent copies
+
+**What happened:** while fixing item #9, the hash-aware rebuild-cap patch was first applied
+only to `skills/super-board/references/run.md` — the copy read by the Codex and Cursor
+external dispatcher forks (`scripts/supersaiyan-codex-run.sh`, `scripts/supersaiyan-cursor-run.sh`
+in this project, via `~/.codex/skills/super-board/...` and `~/.cursor/skills/super-board/...`
+symlinks). It took a second pass to notice `skills/supersaiyan/references/run.md` — the copy
+read by Claude Code's own native `/supersaiyan run` — is a **separate, independently
+maintained file** with the same content minus a `docs/super-board/` → `docs/supersaiyan/`
+path rewrite. It had received neither this fix nor any prior one.
+
+**Status: fixed for this specific change** — both copies now carry the hash-aware reset and
+the `absolute_rebuild_ceiling` gate identically. The structural risk remains: nothing enforces
+these two copies staying in sync, and the divergence is invisible until someone happens to
+compare them (as happened here only by accident, while re-reading files for an unrelated fix).
+
+**Upstream fix needed:** either make one copy the real source and have the other reference/
+import it, or add a CI check that diffs the two (ignoring the known path-prefix difference)
+and fails if anything else differs. Two dispatch paths silently drifting apart is exactly the
+kind of gap that produces a "why does Claude Code's `/supersaiyan run` behave differently from
+the Codex fork" bug report months from now, with no obvious cause.
 
 ---
 
@@ -337,7 +375,8 @@ an otherwise-fresh finding).
 | 6 | Fixed-tick polling exhausts GraphQL quota | Fixed, measured live (6s vs 600s) | Event-driven dispatch |
 | 7 | No backend abstraction — dispatcher forked per tool | Working, but duplicated | Needs `Backend` interface |
 | 8 | Orphan-guard pattern never matched real Cursor workers | Fixed, verified against a live process | Pattern + regression test |
-| 9 | `rebuild_cap` never resets after human authorization; blocks fire regardless of hash | **Open** | Needs hash-aware cap gate or documented reset mechanism |
+| 9 | `rebuild_cap` never resets after human authorization; blocks fire regardless of hash | Fixed (plugin, local, unpushed) — hash-aware enforcement + `absolute_rebuild_ceiling` backstop, verified live on issue #47 | `run.md` + `config-schema.json`, both copies |
+| 10 | `run.md`/`config-schema.json` exist in two silently-divergent copies (`super-board` vs `supersaiyan` skills) | Fixed for this change; structural risk remains for future edits | Needs a single source of truth or a sync check |
 
 Items with no "upstream" location are things that had to be re-solved per project because
 the fix lives in this repo's scripts/config rather than in the SuperSaiyan plugin itself.
