@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -108,6 +109,26 @@ def test_verbatim_overlap_changes_only_its_factor() -> None:
     )
 
 
+def test_verbatim_overlap_does_not_treat_shuffled_words_as_verbatim() -> None:
+    from ai_researcher.scoring.confidence import SupportingNode, score_confidence
+
+    exact_claim = _claim()
+    shuffled_claim = replace(
+        exact_claim,
+        supporting_nodes=(
+            SupportingNode(
+                11,
+                "rates error logical reduces decoder the.",
+            ),
+        ),
+    )
+
+    exact_overlap = _contributions(score_confidence(exact_claim))["verbatim_overlap"]
+    shuffled_overlap = _contributions(score_confidence(shuffled_claim))["verbatim_overlap"]
+
+    assert shuffled_overlap < exact_overlap
+
+
 def test_repeated_extraction_consistency_changes_only_its_factor() -> None:
     from ai_researcher.scoring.confidence import score_confidence
 
@@ -205,6 +226,37 @@ def test_score_scope_writes_confidence_and_continues_past_claim_failures() -> No
     assert result.scored == 1
     assert result.failed == 1
     assert store.saved == [(7, result.scores[0].value)]
+
+
+def test_postgres_store_targets_claim_score_confidence_without_quality_scoring() -> None:
+    from ai_researcher.db.models import claim_score
+    from ai_researcher.scoring.confidence import (
+        PENDING_EVIDENCE_QUALITY,
+        PENDING_RUBRIC_VERSION,
+        PostgresConfidenceStore,
+    )
+
+    inserted: list[dict[str, Any]] = []
+
+    class RecordingConnection:
+        def execute(self, statement) -> None:
+            assert statement.table is claim_score
+            inserted.append(statement.compile().params)
+
+    @contextmanager
+    def connection_factory():
+        yield RecordingConnection()
+
+    PostgresConfidenceStore(connection_factory=connection_factory).save_confidence(7, 63)
+
+    assert inserted == [
+        {
+            "claim_id": 7,
+            "confidence": 63,
+            "evidence_quality": PENDING_EVIDENCE_QUALITY,
+            "rubric_version": PENDING_RUBRIC_VERSION,
+        }
+    ]
 
 
 def test_extract_scores_by_default_and_no_score_disables_it(
