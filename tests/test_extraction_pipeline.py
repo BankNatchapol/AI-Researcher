@@ -658,7 +658,7 @@ def test_prompt_bump_preserves_claim_identity_and_dependents(
 
     monkeypatch.setattr(gateway, "complete", fake_complete)
     runner = CliRunner()
-    initial = runner.invoke(app, ["extract", "surface-codes"])
+    initial = runner.invoke(app, ["extract", "surface-codes", "--no-score"])
     assert initial.exit_code == 0, initial.output
 
     with isolated_database.begin() as connection:
@@ -685,7 +685,7 @@ def test_prompt_bump_preserves_claim_identity_and_dependents(
         )
 
     monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
-    bumped = runner.invoke(app, ["extract", "surface-codes"])
+    bumped = runner.invoke(app, ["extract", "surface-codes", "--no-score"])
 
     assert bumped.exit_code == 0, bumped.output
     with isolated_database.connect() as connection:

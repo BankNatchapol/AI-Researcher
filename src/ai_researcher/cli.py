@@ -169,6 +169,11 @@ def extract_corpus(
         "--dedup/--no-dedup",
         help="Canonicalize duplicate claims after evidence linking.",
     ),
+    score_enabled: bool = typer.Option(
+        True,
+        "--score/--no-score",
+        help="Compute pipeline confidence after claim canonicalization.",
+    ),
 ) -> None:
     """Extract claims, methods, results, datasets, and metrics for a saved scope."""
 
@@ -212,6 +217,15 @@ def extract_corpus(
             f"pairs={identity_result.pairs_compared} "
             f"canonical={identity_result.canonical_claims} "
             f"merged={identity_result.merged_claims}."
+        )
+    if score_enabled:
+        from ai_researcher.scoring import confidence
+
+        confidence_result = confidence.score_scope_confidence(scope_name)
+        typer.echo(
+            "Confidence scoring complete: "
+            f"scored={confidence_result.scored} "
+            f"failed={confidence_result.failed}."
         )
 
 
