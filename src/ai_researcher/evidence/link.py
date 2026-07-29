@@ -225,7 +225,11 @@ class PostgresEvidenceStore:
                     )
                     .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
                     .join(scope_table, scope_table.c.id == paper_scope.c.scope_id)
-                    .where(scope_table.c.name == scope_name, ~linked_claim)
+                    .where(
+                        scope_table.c.name == scope_name,
+                        claim_table.c.canonical_claim_id.is_(None),
+                        ~linked_claim,
+                    )
                     .order_by(claim_table.c.id)
                 )
                 .mappings()

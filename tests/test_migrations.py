@@ -113,6 +113,7 @@ EXPECTED_COLUMNS = {
         "object_value",
         "unit",
         "canonical_claim_id",
+        "identity_checked_at",
         "extraction_model",
         "prompt_version",
         "created_at",
@@ -259,6 +260,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert "Applied migration 0004_fts_index" in first_run.output
     assert "Applied migration 0005_extraction" in first_run.output
     assert "Applied migration 0006_extraction_state" in first_run.output
+    assert "Applied migration 0007_claim_identity_state" in first_run.output
     assert second_run.exit_code == 0, second_run.output
     assert "already up to date" in second_run.output
 
@@ -287,19 +289,21 @@ def test_cli_applies_all_migrations_and_is_idempotent(
         actual_columns.setdefault(table_name, set()).add(column_name)
     for table_name, expected in EXPECTED_COLUMNS.items():
         assert actual_columns[table_name] == expected
-    assert len(applied) == 6
+    assert len(applied) == 7
     assert applied[0][0:2] == (1, "0001_initial")
     assert applied[1][0:2] == (2, "0002_paper_parse_error")
     assert applied[2][0:2] == (3, "0003_trees")
     assert applied[3][0:2] == (4, "0004_fts_index")
     assert applied[4][0:2] == (5, "0005_extraction")
     assert applied[5][0:2] == (6, "0006_extraction_state")
+    assert applied[6][0:2] == (7, "0007_claim_identity_state")
     assert applied[0][2] is not None
     assert applied[1][2] is not None
     assert applied[2][2] is not None
     assert applied[3][2] is not None
     assert applied[4][2] is not None
     assert applied[5][2] is not None
+    assert applied[6][2] is not None
 
 
 @pytest.mark.parametrize("identifier", ["doi", "arxiv_id"])
