@@ -121,7 +121,7 @@ class ConfidenceStore(Protocol):
     """Persistence operations needed by scope-level confidence scoring."""
 
     def load_unscored_claims(self, scope_name: str) -> tuple[ClaimLike, ...]:
-        """Return enriched claim inputs that do not yet have a score."""
+        """Return enriched claim inputs whose score is missing or stale."""
 
     def save_confidence(self, claim_id: int, confidence: int) -> None:
         """Persist only the pipeline confidence calculation."""
@@ -151,6 +151,25 @@ class PostgresConfidenceStore:
             if scope_id is None:
                 raise ValueError(f"Unknown scope: {scope_name}")
 
+            canonical_root_id = func.coalesce(
+                claim_table.c.canonical_claim_id,
+                claim_table.c.id,
+            )
+            latest_evidence_at = (
+                select(func.max(claim_evidence.c.created_at))
+                .where(claim_evidence.c.claim_id == canonical_root_id)
+                .correlate(claim_table)
+                .scalar_subquery()
+            )
+            latest_trace_at = (
+                select(func.max(retrieval_trace.c.created_at))
+                .where(
+                    retrieval_trace.c.scope_id == scope_id,
+                    retrieval_trace.c.question == claim_table.c.normalized_text,
+                )
+                .correlate(claim_table)
+                .scalar_subquery()
+            )
             candidates = (
                 connection.execute(
                     select(
@@ -165,7 +184,10 @@ class PostgresConfidenceStore:
                     .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
                     .where(
                         paper_scope.c.scope_id == scope_id,
-                        latest_score_at.is_(None) | (latest_score_at < latest_observation_at),
+                        latest_score_at.is_(None)
+                        | (latest_score_at < latest_observation_at)
+                        | (latest_score_at < latest_evidence_at)
+                        | (latest_score_at < latest_trace_at),
                     )
                     .order_by(claim_table.c.id)
                 )

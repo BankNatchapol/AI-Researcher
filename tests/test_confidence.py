@@ -270,6 +270,30 @@ def test_postgres_loader_uses_prior_same_claim_observations_as_repeated_runs() -
     assert loaded[0].repeated_extractions == ("The decoder reduces logical error rates.",)
 
 
+def test_postgres_loader_watches_evidence_and_retrieval_freshness() -> None:
+    from ai_researcher.scoring.confidence import PostgresConfidenceStore
+
+    class FreshnessCheckingConnection(_ConfidenceLoaderConnection):
+        def execute(self, statement) -> _RowsResult:
+            sql = str(statement)
+            if "FROM claim JOIN paper_scope" in sql:
+                assert "max(claim_evidence.created_at)" in sql
+                assert "max(retrieval_trace.created_at)" in sql
+                return _RowsResult()
+            return super().execute(statement)
+
+    @contextmanager
+    def connection_factory():
+        yield FreshnessCheckingConnection()
+
+    assert (
+        PostgresConfidenceStore(
+            connection_factory=connection_factory,
+        ).load_unscored_claims("surface-codes")
+        == ()
+    )
+
+
 def test_production_repeated_run_agreement_changes_only_self_consistency() -> None:
     from ai_researcher.scoring.confidence import PostgresConfidenceStore, score_confidence
 

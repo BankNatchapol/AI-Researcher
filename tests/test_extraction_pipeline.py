@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -27,6 +28,7 @@ from ai_researcher.db.models import (
     paper_extraction_state,
     paper_scope,
     result,
+    retrieval_trace,
     tree_node,
 )
 from ai_researcher.db.models import scope as scope_table
@@ -254,6 +256,112 @@ def _seed_scope_with_valid_section_fks(engine: Engine) -> tuple[int, int, list[i
         )
 
     return parsed_id, abstract_id, parsed_node_ids, [abstract_node_id]
+
+
+def test_confidence_refreshes_when_evidence_and_trace_arrive_after_initial_score(
+    isolated_database: Engine,
+) -> None:
+    """A score written by --no-link-evidence must not freeze incomplete inputs."""
+
+    from ai_researcher.scoring.confidence import score_scope_confidence
+
+    parsed_id, _abstract_id, parsed_nodes, _abstract_nodes = _seed_scope_with_valid_section_fks(
+        isolated_database
+    )
+    initial_input_at = datetime(2026, 1, 1, tzinfo=UTC)
+    initial_score_at = datetime(2026, 2, 1, tzinfo=UTC)
+    linked_at = datetime(2026, 3, 1, tzinfo=UTC)
+    traced_at = datetime(2026, 4, 1, tzinfo=UTC)
+
+    with isolated_database.begin() as connection:
+        scope_id = int(
+            connection.execute(
+                select(scope_table.c.id).where(scope_table.c.name == "surface-codes")
+            ).scalar_one()
+        )
+        claim_id = int(
+            connection.execute(
+                insert(claim)
+                .values(
+                    paper_id=parsed_id,
+                    tree_node_id=parsed_nodes[0],
+                    claim_text="Intro body.",
+                    normalized_text="intro body",
+                    claim_type="fact",
+                    extraction_model="codex",
+                    prompt_version="1",
+                    created_at=initial_input_at,
+                )
+                .returning(claim.c.id)
+            ).scalar_one()
+        )
+        connection.execute(
+            insert(claim_extraction_observation).values(
+                claim_id=claim_id,
+                paper_id=parsed_id,
+                tree_node_id=parsed_nodes[0],
+                claim_text="Intro body.",
+                extraction_model="codex",
+                prompt_version="1",
+                recorded_at=initial_input_at,
+            )
+        )
+        connection.execute(
+            insert(paper_extraction_state).values(
+                paper_id=parsed_id,
+                extraction_model="codex",
+                prompt_version="1",
+                validation_accepted=1,
+                validation_rejected=0,
+                completed_at=initial_input_at,
+            )
+        )
+        connection.execute(
+            insert(claim_score).values(
+                claim_id=claim_id,
+                confidence=10,
+                evidence_quality=0,
+                rubric_version="pending-evidence-quality",
+                scored_at=initial_score_at,
+            )
+        )
+
+    assert score_scope_confidence("surface-codes").scored == 0
+
+    with isolated_database.begin() as connection:
+        connection.execute(
+            insert(claim_evidence).values(
+                claim_id=claim_id,
+                tree_node_id=parsed_nodes[0],
+                paper_id=parsed_id,
+                stance="supports",
+                rationale_text="Intro body.",
+                created_at=linked_at,
+            )
+        )
+        connection.execute(
+            insert(retrieval_trace).values(
+                question="intro body",
+                scope_id=scope_id,
+                expanded_node_ids=parsed_nodes,
+                selected_node_ids=[parsed_nodes[0]],
+                nodes_expanded=len(parsed_nodes),
+                stopped_reason="sufficient_evidence",
+                created_at=traced_at,
+            )
+        )
+
+    refreshed = score_scope_confidence("surface-codes")
+
+    assert refreshed.scored == 1
+    assert refreshed.scores[0].value > 10
+    with isolated_database.connect() as connection:
+        persisted_scores = connection.execute(
+            select(claim_score.c.confidence)
+            .where(claim_score.c.claim_id == claim_id)
+            .order_by(claim_score.c.id)
+        ).scalars()
+        assert list(persisted_scores) == [10, refreshed.scores[0].value]
 
 
 def test_extract_paper_batches_one_call_per_paper_not_per_node() -> None:
