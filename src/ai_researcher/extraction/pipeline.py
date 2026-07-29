@@ -683,17 +683,16 @@ def _reconcile_claims(
         )
         raise ExtractionError(msg)
 
+    changed_claim_ids = [
+        claim_id
+        for claim_id, record in matched
+        if existing_identity_fields.get(claim_id)
+        != (record.predicate, record.object_value, record.unit)
+    ]
+    _invalidate_identity_groups(connection, changed_claim_ids)
+
     for claim_id, record in matched:
         values = _claim_values(paper_id, record)
-        previous_fields = existing_identity_fields.get(claim_id)
-        new_fields = (record.predicate, record.object_value, record.unit)
-        if previous_fields is not None and previous_fields != new_fields:
-            # Re-extraction changed a field the dedup prefilter matches on
-            # (predicate/object_value/unit). Any prior identity_checked_at marker
-            # now describes stale data, so clear it: the claim must be eligible for
-            # comparison again on the next canonicalize_scope() call, even against
-            # other already-checked claims it might now overlap with.
-            values["identity_checked_at"] = None
         connection.execute(update(claim).where(claim.c.id == claim_id).values(**values))
     if new_records:
         connection.execute(
@@ -702,6 +701,89 @@ def _reconcile_claims(
         )
     if stale_ids:
         connection.execute(delete(claim).where(claim.c.id.in_(stale_ids)))
+
+
+def _invalidate_identity_groups(
+    connection: Connection,
+    changed_claim_ids: list[int],
+) -> None:
+    """Detach groups whose identity-driving data changed and restore their evidence."""
+
+    if not changed_claim_ids:
+        return
+
+    changed_rows = (
+        connection.execute(
+            select(claim.c.id, claim.c.canonical_claim_id).where(claim.c.id.in_(changed_claim_ids))
+        )
+        .mappings()
+        .all()
+    )
+    root_ids = {int(row["canonical_claim_id"] or row["id"]) for row in changed_rows}
+    if not root_ids:
+        return
+
+    group_rows = (
+        connection.execute(
+            select(
+                claim.c.id,
+                claim.c.paper_id,
+                claim.c.canonical_claim_id,
+            )
+            .where((claim.c.id.in_(root_ids)) | (claim.c.canonical_claim_id.in_(root_ids)))
+            .order_by(claim.c.id)
+        )
+        .mappings()
+        .all()
+    )
+    rows_by_root: dict[int, list[Any]] = {root_id: [] for root_id in root_ids}
+    for row in group_rows:
+        root_id = int(row["canonical_claim_id"] or row["id"])
+        rows_by_root.setdefault(root_id, []).append(row)
+
+    for root_id, rows in rows_by_root.items():
+        member_ids = [int(row["id"]) for row in rows]
+        if not member_ids:
+            continue
+
+        claims_by_paper: dict[int, list[int]] = {}
+        for row in rows:
+            claims_by_paper.setdefault(int(row["paper_id"]), []).append(int(row["id"]))
+
+        evidence_rows = (
+            connection.execute(
+                select(
+                    claim_evidence.c.id,
+                    claim_evidence.c.claim_id,
+                    claim_evidence.c.paper_id,
+                )
+                .where(claim_evidence.c.claim_id.in_(member_ids))
+                .order_by(claim_evidence.c.id)
+            )
+            .mappings()
+            .all()
+        )
+        for evidence_row in evidence_rows:
+            current_claim_id = int(evidence_row["claim_id"])
+            paper_claim_ids = claims_by_paper.get(int(evidence_row["paper_id"]), [])
+            if current_claim_id in paper_claim_ids:
+                target_claim_id = current_claim_id
+            elif paper_claim_ids:
+                target_claim_id = min(paper_claim_ids)
+            else:
+                target_claim_id = root_id
+            if target_claim_id != current_claim_id:
+                connection.execute(
+                    update(claim_evidence)
+                    .where(claim_evidence.c.id == int(evidence_row["id"]))
+                    .values(claim_id=target_claim_id)
+                )
+
+        connection.execute(
+            update(claim)
+            .where(claim.c.id.in_(member_ids))
+            .values(canonical_claim_id=None, identity_checked_at=None)
+        )
 
 
 def _claims_have_dependents(connection: Connection, claim_ids: list[int]) -> bool:

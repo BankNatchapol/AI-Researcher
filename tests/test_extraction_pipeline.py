@@ -836,8 +836,8 @@ def test_reextraction_detaches_old_canonical_member_when_root_value_diverges(
     from ai_researcher.extraction import prompts
     from ai_researcher.llm import gateway
 
-    _parsed_id, _abstract_id, parsed_node_ids, abstract_node_ids = (
-        _seed_scope_with_valid_section_fks(isolated_database)
+    parsed_id, abstract_id, parsed_node_ids, abstract_node_ids = _seed_scope_with_valid_section_fks(
+        isolated_database
     )
     root_node, new_match_node = parsed_node_ids[:2]
     old_member_node = abstract_node_ids[0]
@@ -938,6 +938,31 @@ def test_reextraction_detaches_old_canonical_member_when_root_value_diverges(
     assert initial_rows[old_member_node].canonical_claim_id == root_id
     assert identity_calls == [[(root_id, old_member_id)]]
 
+    # Canonicalization consolidates evidence from both contributing papers onto
+    # the canonical row. Invalidating the group must restore each paper's
+    # evidence to its preserved original rather than leaving the old member
+    # evidence attached to a proposition that is about to change.
+    with isolated_database.begin() as connection:
+        connection.execute(
+            insert(claim_evidence),
+            [
+                {
+                    "claim_id": root_id,
+                    "tree_node_id": root_node,
+                    "paper_id": parsed_id,
+                    "stance": "supports",
+                    "rationale_text": "Root-paper support.",
+                },
+                {
+                    "claim_id": root_id,
+                    "tree_node_id": old_member_node,
+                    "paper_id": abstract_id,
+                    "stance": "supports",
+                    "rationale_text": "Member-paper support.",
+                },
+            ],
+        )
+
     # Run 2: the canonical root moves to 2%. It should merge with the existing
     # 2% root, while the preserved 1% original must be detached because it no
     # longer overlaps the updated canonical proposition.
@@ -964,3 +989,15 @@ def test_reextraction_detaches_old_canonical_member_when_root_value_diverges(
     assert final_rows[new_match_id].canonical_claim_id == root_id
     assert final_rows[old_member_id].object_value == 1.0
     assert final_rows[old_member_id].canonical_claim_id is None
+
+    with isolated_database.connect() as connection:
+        evidence_by_paper = {
+            int(row.paper_id): int(row.claim_id)
+            for row in connection.execute(
+                select(claim_evidence.c.paper_id, claim_evidence.c.claim_id)
+            )
+        }
+    assert evidence_by_paper == {
+        parsed_id: root_id,
+        abstract_id: old_member_id,
+    }
