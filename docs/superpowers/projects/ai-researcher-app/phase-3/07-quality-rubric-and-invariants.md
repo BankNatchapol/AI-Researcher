@@ -22,7 +22,7 @@ mechanically prevented from ever merging the two scores.
 - [ ] `rubric_version` is stored on every `claim_score` row and changes when the rubric file changes
 - [ ] An abstract-only paper's claim scores measurably lower than an otherwise identical full-text claim, asserted by a test
 - [ ] `uv run pytest tests/test_score_separation.py` exits 0, failing the build if any module performs arithmetic combining `confidence` and `evidence_quality`, and if `scoring/` imports any discourse module
-- [ ] `uv run pytest tests/test_quality.py` exits 0, covering each rubric factor in isolation: full-text versus abstract-only, peer-reviewed versus preprint, direct versus inferred, table/figure-backed versus narrative, recency, and replication count
+- [ ] `uv run pytest tests/test_quality.py` exits 0, covering each rubric factor in isolation: full-text versus abstract-only, peer-reviewed versus preprint, direct versus inferred, recency, and replication count
 
 ## Implementation notes
 
@@ -39,10 +39,16 @@ mechanically prevented from ever merging the two scores.
 **Rubric factors (all sourced from real columns, none invented):**
 - full text versus abstract-only — `parse_status`
 - peer-reviewed versus preprint — `is_preprint`, `venue`
-- direct statement versus inferred — set during extraction
-- table/figure-backed versus narrative-only — set during extraction
+- direct statement versus inferred — `claim_evidence.is_direct`, set by the batched stance
+  call in evidence linking (task 04); the quality scorer only reads the stored flag
 - recency — `published_at`
 - replication — count of distinct papers with supporting evidence for the canonical claim
+
+**Dropped from v1:** table/figure-backed versus narrative-only. GROBID's TEI parsing (Phase 1)
+does not preserve any figure/table distinction, so there is no real signal to score this
+factor against — figure and table grounding is explicitly out of scope for v1 (`AGENTS.md`).
+Storing a column with no real signal behind it would misrepresent itself as evidence-quality
+data. See `src/ai_researcher/scoring/rubric.md`'s "Out of scope for v1" section.
 
 **Why the separation test is a build gate:** PROJECT.md makes the two-score split a hard
 invariant. A convention would erode; an AST-level test that fails CI cannot.

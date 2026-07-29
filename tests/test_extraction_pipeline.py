@@ -336,6 +336,7 @@ def test_confidence_refreshes_when_evidence_and_trace_arrive_after_initial_score
                 paper_id=parsed_id,
                 stance="supports",
                 rationale_text="Intro body.",
+                is_direct=True,
                 created_at=linked_at,
             )
         )
@@ -803,6 +804,7 @@ def test_prompt_bump_preserves_claim_identity_and_dependents(
                 paper_id=original_claim.paper_id,
                 stance="supports",
                 rationale_text="Quoted support.",
+                is_direct=True,
             )
         )
         connection.execute(
@@ -1082,6 +1084,7 @@ def test_reextraction_detaches_old_canonical_member_when_root_value_diverges(
                     "paper_id": parsed_id,
                     "stance": "supports",
                     "rationale_text": "Root-paper support.",
+                    "is_direct": True,
                 },
                 {
                     "claim_id": root_id,
@@ -1089,6 +1092,7 @@ def test_reextraction_detaches_old_canonical_member_when_root_value_diverges(
                     "paper_id": abstract_id,
                     "stance": "supports",
                     "rationale_text": "Member-paper support.",
+                    "is_direct": True,
                 },
             ],
         )

@@ -40,8 +40,9 @@ STANCE_SCHEMA: dict[str, Any] = {
                         "enum": ["supports", "refutes", "mentions"],
                     },
                     "rationale": {"type": "string"},
+                    "is_direct": {"type": "boolean"},
                 },
-                "required": ["node_id", "stance", "rationale"],
+                "required": ["node_id", "stance", "rationale", "is_direct"],
                 "additionalProperties": False,
             },
         }
@@ -95,6 +96,7 @@ class ClaimEvidence:
     paper_id: int
     stance: Stance
     rationale_text: str
+    is_direct: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +169,7 @@ class PostgresEvidenceStore:
                         claim_evidence_table.c.paper_id,
                         claim_evidence_table.c.stance,
                         claim_evidence_table.c.rationale_text,
+                        claim_evidence_table.c.is_direct,
                     ).where(claim_evidence_table.c.claim_id == claim_id)
                 )
                 .mappings()
@@ -192,6 +195,7 @@ class PostgresEvidenceStore:
                     "paper_id": link.paper_id,
                     "stance": link.stance,
                     "rationale_text": link.rationale_text,
+                    "is_direct": link.is_direct,
                 }
                 existing = existing_by_node.get(link.tree_node_id)
                 if existing is None:
@@ -201,6 +205,7 @@ class PostgresEvidenceStore:
                     int(existing["paper_id"]) != link.paper_id
                     or str(existing["stance"]) != link.stance
                     or str(existing["rationale_text"]) != link.rationale_text
+                    or bool(existing["is_direct"]) != link.is_direct
                 ):
                     connection.execute(
                         update(claim_evidence_table)
@@ -274,7 +279,9 @@ def link_evidence(
             "Classify every candidate independently as supports, refutes, or mentions. "
             "Treat refuting evidence as equally important as supporting evidence. "
             "For rationale, copy one exact verbatim passage from that candidate's body_text; "
-            "do not paraphrase or combine passages."
+            "do not paraphrase or combine passages. Also set is_direct to true only when the "
+            "candidate explicitly states the claim; set it to false when the claim can only be "
+            "reached by an inferential step from what the passage says."
         ),
         "candidate_nodes": [
             {
@@ -355,6 +362,7 @@ def _validated_links(
         node_id = classification.get("node_id")
         stance = classification.get("stance")
         rationale = classification.get("rationale")
+        is_direct = classification.get("is_direct")
         if (
             isinstance(node_id, bool)
             or not isinstance(node_id, int)
@@ -362,6 +370,7 @@ def _validated_links(
             or node_id not in candidates_by_id
             or stance not in {"supports", "refutes", "mentions"}
             or not isinstance(rationale, str)
+            or not isinstance(is_direct, bool)
         ):
             raise EvidenceLinkingError("Stance model returned an invalid classification")
         seen_node_ids.add(node_id)
@@ -381,6 +390,7 @@ def _validated_links(
                 paper_id=candidate.paper_id,
                 stance=stance,
                 rationale_text=verbatim_rationale,
+                is_direct=is_direct,
             )
         )
     if seen_node_ids != set(candidates_by_id):

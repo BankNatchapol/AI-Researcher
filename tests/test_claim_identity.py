@@ -392,6 +392,7 @@ def test_canonicalize_preserves_original_claims_and_repoints_all_evidence(
                     "paper_id": source_row["paper_id"],
                     "stance": "supports",
                     "rationale_text": source_row["claim_text"],
+                    "is_direct": True,
                 }
                 for claim_row in claim_rows
                 for source_row in claim_rows
@@ -988,6 +989,7 @@ def test_extract_rerun_does_no_identity_or_stance_work(
                         "node_id": candidate["node_id"],
                         "stance": "supports",
                         "rationale": candidate["body_text"],
+                        "is_direct": True,
                     }
                     for candidate in payload["candidate_nodes"]
                 ]

@@ -17,7 +17,6 @@ def _evidence(**overrides: Any):
         "paper_id": 101,
         "stance": "supports",
         "is_direct": True,
-        "is_table_or_figure_backed": True,
     }
     values.update(overrides)
     return QualityEvidence(**values)
@@ -64,7 +63,6 @@ def test_score_returns_bounded_value_and_every_documented_factor() -> None:
         "full_text",
         "peer_review",
         "directness",
-        "evidence_presentation",
         "recency",
         "replication",
     }
@@ -113,22 +111,6 @@ def test_direct_evidence_scores_higher_than_otherwise_identical_inference() -> N
         score_quality(inferred),
         score_quality(direct),
         "directness",
-    )
-
-
-def test_table_or_figure_evidence_scores_higher_than_narrative_evidence() -> None:
-    from ai_researcher.scoring.quality import score_quality
-
-    narrative = _claim(evidence=(_evidence(is_table_or_figure_backed=False),))
-    structured = replace(
-        narrative,
-        evidence=(_evidence(is_table_or_figure_backed=True),),
-    )
-
-    _assert_only_factor_changed(
-        score_quality(narrative),
-        score_quality(structured),
-        "evidence_presentation",
     )
 
 
@@ -199,7 +181,6 @@ def test_mapping_input_is_supported_by_score_quality() -> None:
                     "paper_id": 101,
                     "stance": "supports",
                     "is_direct": True,
-                    "is_table_or_figure_backed": False,
                 }
             ],
         }

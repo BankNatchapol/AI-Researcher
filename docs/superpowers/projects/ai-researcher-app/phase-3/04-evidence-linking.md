@@ -17,7 +17,7 @@ nodes in other papers — with a verbatim quote making every link auditable.
 
 ## Acceptance Criteria
 
-- [ ] `link_evidence(claim) -> list[ClaimEvidence]` finds candidate nodes using Phase 2 traversal and assigns each a stance of `supports`, `refutes`, or `mentions`
+- [ ] `link_evidence(claim) -> list[ClaimEvidence]` finds candidate nodes using Phase 2 traversal and assigns each a stance of `supports`, `refutes`, or `mentions`, plus an `is_direct` boolean classified in the same call (consumed later by task 07's evidence-quality rubric)
 - [ ] Evidence links include nodes from papers other than the claim's origin paper, asserted by a test with a two-paper fixture where one refutes the other
 - [ ] Every `claim_evidence` row stores `rationale_text` quoted verbatim from the node's `body_text`, not paraphrased
 - [ ] A rationale that does not appear verbatim in the referenced node is rejected and the link is not persisted

@@ -480,6 +480,7 @@ def test_default_dedup_refreshes_scores_created_by_prior_no_dedup_run(
                     paper_id=paper_id,
                     stance="supports",
                     rationale_text=claim_text,
+                    is_direct=True,
                 )
             )
         connection.execute(

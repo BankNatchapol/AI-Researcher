@@ -23,7 +23,6 @@ _FACTOR_NAMES = {
     "full_text",
     "peer_review",
     "directness",
-    "evidence_presentation",
     "recency",
     "replication",
 }
@@ -41,7 +40,6 @@ class QualityEvidence:
     paper_id: int
     stance: Stance
     is_direct: bool
-    is_table_or_figure_backed: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +140,7 @@ def load_rubric(path: Path = RUBRIC_PATH) -> Rubric:
     if not declared_version:
         raise ValueError(f"Rubric {path} must declare a version")
     if not isinstance(factors, Mapping) or set(factors) != _FACTOR_NAMES:
-        raise ValueError(f"Rubric {path} must define exactly the six evidence-quality factors")
+        raise ValueError(f"Rubric {path} must define exactly the five evidence-quality factors")
 
     total_weight = 0.0
     validated_factors: dict[str, Mapping[str, Any]] = {}
@@ -184,11 +182,6 @@ def score_quality(
         else "preprint_or_unreviewed"
     )
     directness_raw = "direct" if any(item.is_direct for item in supporting_evidence) else "inferred"
-    presentation_raw = (
-        "table_or_figure"
-        if any(item.is_table_or_figure_backed for item in supporting_evidence)
-        else "narrative"
-    )
     age_years = (
         max(0.0, (score_date - candidate.published_at).days / 365.2425)
         if candidate.published_at is not None
@@ -200,7 +193,6 @@ def score_quality(
         _value_factor(rubric, "full_text", full_text_raw),
         _value_factor(rubric, "peer_review", peer_review_raw),
         _value_factor(rubric, "directness", directness_raw),
-        _value_factor(rubric, "evidence_presentation", presentation_raw),
         _recency_factor(rubric, age_years),
         _replication_factor(rubric, supporting_paper_count),
     )
@@ -301,10 +293,6 @@ def _coerce_claim(claim: ClaimLike) -> QualityClaim:
                 paper_id=_positive_integer(_field(raw_evidence, "paper_id"), "paper_id"),
                 stance=cast(Stance, stance),
                 is_direct=_boolean(_field(raw_evidence, "is_direct"), "is_direct"),
-                is_table_or_figure_backed=_boolean(
-                    _field(raw_evidence, "is_table_or_figure_backed"),
-                    "is_table_or_figure_backed",
-                ),
             )
         )
 
