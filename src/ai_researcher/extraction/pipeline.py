@@ -636,6 +636,9 @@ def _reconcile_claims(
                 claim.c.tree_node_id,
                 claim.c.normalized_text,
                 claim.c.claim_type,
+                claim.c.predicate,
+                claim.c.object_value,
+                claim.c.unit,
             )
             .where(claim.c.paper_id == paper_id)
             .order_by(claim.c.id)
@@ -644,6 +647,10 @@ def _reconcile_claims(
         .all()
     )
     existing_by_identity: dict[tuple[int, str, str], list[int]] = {}
+    # Identity-relevant fields per claim id, as they stood before this reconciliation.
+    # claim_type is not tracked here: it is part of the matching key above, so a
+    # matched claim's claim_type is unchanged by definition.
+    existing_identity_fields: dict[int, tuple[Any, Any, Any]] = {}
     for row in existing_rows:
         identity = (
             int(row["tree_node_id"]),
@@ -651,6 +658,11 @@ def _reconcile_claims(
             str(row["claim_type"]),
         )
         existing_by_identity.setdefault(identity, []).append(int(row["id"]))
+        existing_identity_fields[int(row["id"])] = (
+            row["predicate"],
+            row["object_value"],
+            row["unit"],
+        )
 
     matched: list[tuple[int, ClaimRecord]] = []
     new_records: list[ClaimRecord] = []
@@ -672,9 +684,17 @@ def _reconcile_claims(
         raise ExtractionError(msg)
 
     for claim_id, record in matched:
-        connection.execute(
-            update(claim).where(claim.c.id == claim_id).values(**_claim_values(paper_id, record))
-        )
+        values = _claim_values(paper_id, record)
+        previous_fields = existing_identity_fields.get(claim_id)
+        new_fields = (record.predicate, record.object_value, record.unit)
+        if previous_fields is not None and previous_fields != new_fields:
+            # Re-extraction changed a field the dedup prefilter matches on
+            # (predicate/object_value/unit). Any prior identity_checked_at marker
+            # now describes stale data, so clear it: the claim must be eligible for
+            # comparison again on the next canonicalize_scope() call, even against
+            # other already-checked claims it might now overlap with.
+            values["identity_checked_at"] = None
+        connection.execute(update(claim).where(claim.c.id == claim_id).values(**values))
     if new_records:
         connection.execute(
             insert(claim),

@@ -712,3 +712,109 @@ def test_prompt_bump_preserves_claim_identity_and_dependents(
             ).scalar_one()
             == 1
         )
+
+
+def test_reextraction_invalidates_identity_marker_when_value_changes_into_overlap(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for issue #46 rebuild 3.
+
+    A claim's identity_checked_at marker previously survived reconciliation even
+    when the reconciled value changed enough to newly overlap another
+    already-checked claim -- canonicalize_scope() then silently skipped the pair
+    (identity_checked_at remained set on both sides, so neither was "pending").
+    Reconciliation must clear the marker when it rewrites a field the dedup
+    prefilter matches on (predicate/object_value/unit), so the pair becomes
+    eligible for comparison again.
+    """
+
+    from ai_researcher.extraction import prompts
+    from ai_researcher.llm import gateway
+
+    parsed_id, _abstract_id, parsed_node_ids, _abstract_node_ids = (
+        _seed_scope_with_valid_section_fks(isolated_database)
+    )
+    node_a, node_b = parsed_node_ids[0], parsed_node_ids[1]
+
+    identity_calls: list[list[tuple[int, int]]] = []
+    claim_a_value = {"value": 0.20}
+
+    def claim_record(node_id: int, *, value: float, version: str) -> dict[str, Any]:
+        return {
+            "record_type": "claim",
+            "tree_node_id": node_id,
+            "claim_text": f"Threshold at node {node_id} is {value}%.",
+            "normalized_text": f"threshold at node {node_id}",
+            "claim_type": "measurement",
+            "predicate": "logical error threshold",
+            "object_value": value,
+            "unit": "%",
+            "extraction_model": "codex",
+            "prompt_version": version,
+        }
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        payload = json.loads(messages[-1]["content"])
+        if job == "extraction":
+            requested_node_ids = {
+                node["tree_node_id"]
+                for group in payload["section_groups"]
+                for node in group["nodes"]
+            }
+            # This scope has two papers; only the parsed paper's request should
+            # produce the two claims under test. The abstract-only paper's
+            # request must return no records rather than misattributed claims.
+            if not requested_node_ids & {node_a, node_b}:
+                return {"records": []}
+            version = prompts.PROMPT_VERSION
+            records = [
+                claim_record(node_a, value=claim_a_value["value"], version=version),
+                claim_record(node_b, value=1.0, version=version),
+            ]
+            return {"records": records}
+        if job == "claim_identity":
+            pairs = [
+                (candidate["left"]["id"], candidate["right"]["id"])
+                for candidate in payload["candidate_pairs"]
+            ]
+            identity_calls.append(pairs)
+            return {
+                "comparisons": [
+                    {"left_id": left_id, "right_id": right_id, "same_claim": False}
+                    for left_id, right_id in pairs
+                ]
+            }
+        raise AssertionError(f"unexpected job: {job}")
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    runner = CliRunner()
+
+    # Run 1: claim_a=0.20%, claim_b=1.0% -- outside the 5% overlap tolerance.
+    # Prefilter finds no candidate pair; both claims still get marked checked.
+    first = runner.invoke(app, ["extract", "surface-codes", "--no-link-evidence"])
+    assert first.exit_code == 0, first.output
+    assert "pairs=0" in first.output
+    assert identity_calls == []
+
+    with isolated_database.connect() as connection:
+        checked_count = connection.execute(
+            select(func.count())
+            .select_from(claim)
+            .where(claim.c.paper_id == parsed_id, claim.c.identity_checked_at.is_not(None))
+        ).scalar_one()
+        assert checked_count == 2
+
+    # Run 2: prompt version bumps, re-extraction changes claim_a to 0.99% --
+    # now within tolerance of claim_b's unchanged 1.0%. Without the fix,
+    # claim_a's stale identity_checked_at (from run 1) suppresses the pair
+    # entirely and canonicalize_scope() reports zero comparisons.
+    monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
+    claim_a_value["value"] = 0.99
+    second = runner.invoke(app, ["extract", "surface-codes", "--no-link-evidence"])
+
+    assert second.exit_code == 0, second.output
+    assert "pairs=1" in second.output
+    assert len(identity_calls) == 1
+    assert len(identity_calls[0]) == 1
