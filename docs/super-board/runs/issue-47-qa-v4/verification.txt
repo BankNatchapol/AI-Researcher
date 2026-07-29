@@ -1,0 +1,31 @@
+Issue #47 QA v4 verification
+Branch head tested: b449a3a
+
+$ uv run pytest tests/test_confidence.py
+collected 18 items
+tests/test_confidence.py .................. [100%]
+18 passed in 1.27s
+exit code: 0
+
+$ uv run pytest tests/test_extraction_pipeline.py tests/test_migrations.py
+collected 17 items
+tests/test_extraction_pipeline.py ........... [64%]
+tests/test_migrations.py ...... [100%]
+17 passed in 4.09s
+exit code: 0
+
+$ uv run pytest
+collected 217 items
+217 passed in 14.21s
+exit code: 0
+
+$ uv run ruff check .
+All checks passed!
+exit code: 0
+
+$ uv run ruff format --check .
+101 files already formatted
+exit code: 0
+
+$ git diff --check
+exit code: 0
