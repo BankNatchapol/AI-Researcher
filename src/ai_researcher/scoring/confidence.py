@@ -19,12 +19,13 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any, Protocol
 
-from sqlalchemy import Connection, insert, select
+from sqlalchemy import Connection, func, insert, select
 
 from ai_researcher.db import connect
 from ai_researcher.db.models import claim as claim_table
 from ai_researcher.db.models import (
     claim_evidence,
+    claim_extraction_observation,
     claim_score,
     paper_extraction_state,
     paper_scope,
@@ -133,8 +134,15 @@ class PostgresConfidenceStore:
         self._connection_factory = connect if connection_factory is None else connection_factory
 
     def load_unscored_claims(self, scope_name: str) -> tuple[ConfidenceClaim, ...]:
-        scored_claim = (
-            select(claim_score.c.id).where(claim_score.c.claim_id == claim_table.c.id).exists()
+        latest_score_at = (
+            select(func.max(claim_score.c.scored_at))
+            .where(claim_score.c.claim_id == claim_table.c.id)
+            .scalar_subquery()
+        )
+        latest_observation_at = (
+            select(func.max(claim_extraction_observation.c.recorded_at))
+            .where(claim_extraction_observation.c.claim_id == claim_table.c.id)
+            .scalar_subquery()
         )
         with self._connection_factory() as connection:
             scope_id = connection.execute(
@@ -157,7 +165,7 @@ class PostgresConfidenceStore:
                     .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
                     .where(
                         paper_scope.c.scope_id == scope_id,
-                        ~scored_claim,
+                        latest_score_at.is_(None) | (latest_score_at < latest_observation_at),
                     )
                     .order_by(claim_table.c.id)
                 )
@@ -195,6 +203,31 @@ class PostgresConfidenceStore:
                 )
                 for row in validation_rows
             }
+
+            candidate_ids = {int(row["id"]) for row in candidates}
+            observation_rows = (
+                connection.execute(
+                    select(
+                        claim_extraction_observation.c.id,
+                        claim_extraction_observation.c.claim_id,
+                        claim_extraction_observation.c.claim_text,
+                    )
+                    .where(claim_extraction_observation.c.claim_id.in_(candidate_ids))
+                    .order_by(
+                        claim_extraction_observation.c.recorded_at,
+                        claim_extraction_observation.c.id,
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            observations_by_claim: dict[int, list[Any]] = {
+                claim_id: [] for claim_id in candidate_ids
+            }
+            for observation in observation_rows:
+                observation_claim_id = int(observation["claim_id"])
+                if observation_claim_id in observations_by_claim:
+                    observations_by_claim[observation_claim_id].append(observation)
 
             evidence_rows = (
                 connection.execute(
@@ -268,17 +301,24 @@ class PostgresConfidenceStore:
                 ),
                 (0, 0),
             )
+            repeated_extractions = tuple(
+                str(observation["claim_text"])
+                # The final observation is the extraction outcome currently
+                # represented by the reconciled claim row. Every earlier
+                # observation is an actual independent pipeline execution,
+                # including an explicitly forced repeat with the same model
+                # and prompt version.
+                for observation in observations_by_claim.get(claim_id, ())[:-1]
+            )
             claims.append(
                 ConfidenceClaim(
                     id=claim_id,
                     claim_text=str(row["claim_text"]),
                     supporting_nodes=tuple(nodes_by_root.get(root_id, ())),
-                    # Canonical group members are independent papers, not
-                    # repeated executions of the extraction pipeline. No
-                    # repeated-run history is persisted yet, so this signal is
-                    # explicitly unavailable instead of leaking replication
-                    # into pipeline confidence.
-                    repeated_extractions=(),
+                    # Observations are keyed to this exact claim. Canonical
+                    # siblings from other papers never enter pipeline
+                    # self-consistency; they remain evidence-quality inputs.
+                    repeated_extractions=repeated_extractions,
                     stopped_reason=stopped_reason_by_question.get(
                         normalized_text,
                         "no_candidates",

@@ -18,6 +18,7 @@ from ai_researcher.cli import app
 from ai_researcher.db.models import (
     claim,
     claim_evidence,
+    claim_extraction_observation,
     claim_score,
     dataset,
     method,
@@ -312,6 +313,7 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
 ) -> None:
     from ai_researcher.extraction import prompts
     from ai_researcher.llm import gateway
+    from ai_researcher.scoring.confidence import score_scope_confidence
 
     parsed_id, abstract_id, parsed_nodes, abstract_nodes = _seed_scope_with_valid_section_fks(
         isolated_database
@@ -347,15 +349,22 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
     assert "skipped 0" in first.stdout
     assert "failed 0" in first.stdout
     assert call_count == 2  # one call per paper, not per node
+    assert score_scope_confidence("surface-codes").scored == 4
 
     with isolated_database.connect() as connection:
         claim_rows = connection.execute(select(claim)).mappings().all()
+        observation_rows = connection.execute(select(claim_extraction_observation)).mappings().all()
+        initial_score_count = connection.execute(
+            select(func.count()).select_from(claim_score)
+        ).scalar_one()
         method_rows = connection.execute(select(method)).mappings().all()
         result_rows = connection.execute(select(result)).mappings().all()
         dataset_rows = connection.execute(select(dataset)).mappings().all()
         metric_rows = connection.execute(select(metric)).mappings().all()
 
     assert len(claim_rows) == 4  # 3 parsed nodes + 1 abstract node
+    assert len(observation_rows) == 4
+    assert initial_score_count == 4
     assert len(method_rows) == 4
     assert len(result_rows) == 4
     assert len(dataset_rows) == 4
@@ -383,6 +392,7 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
     assert "extracted 2" in third.stdout
     assert "skipped 0" in third.stdout
     assert call_count == 2
+    assert score_scope_confidence("surface-codes").scored == 4
 
     with isolated_database.connect() as connection:
         versions = {
@@ -390,8 +400,20 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
             for row in connection.execute(select(claim.c.prompt_version)).mappings().all()
         }
         claim_count = connection.execute(select(func.count()).select_from(claim)).scalar_one()
+        observation_versions = connection.execute(
+            select(
+                claim_extraction_observation.c.claim_id,
+                claim_extraction_observation.c.prompt_version,
+            )
+        ).all()
+        refreshed_score_count = connection.execute(
+            select(func.count()).select_from(claim_score)
+        ).scalar_one()
     assert versions == {"2"}
     assert claim_count == 4
+    assert len(observation_versions) == 8
+    assert {row.prompt_version for row in observation_versions} == {"1", "2"}
+    assert refreshed_score_count == 8
 
     # Per-paper failure continues the run: wipe one paper's extractions, fail that paper.
     with isolated_database.begin() as connection:

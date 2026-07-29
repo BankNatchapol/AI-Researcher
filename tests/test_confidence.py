@@ -259,7 +259,7 @@ def test_postgres_store_targets_claim_score_confidence_without_quality_scoring()
     ]
 
 
-def test_postgres_loader_does_not_treat_canonical_duplicates_as_repeated_runs() -> None:
+def test_postgres_loader_uses_prior_same_claim_observations_as_repeated_runs() -> None:
     from ai_researcher.scoring.confidence import PostgresConfidenceStore
 
     loaded = PostgresConfidenceStore(
@@ -267,7 +267,25 @@ def test_postgres_loader_does_not_treat_canonical_duplicates_as_repeated_runs() 
     ).load_unscored_claims("surface-codes")
 
     assert len(loaded) == 1
-    assert loaded[0].repeated_extractions == ()
+    assert loaded[0].repeated_extractions == ("The decoder reduces logical error rates.",)
+
+
+def test_production_repeated_run_agreement_changes_only_self_consistency() -> None:
+    from ai_researcher.scoring.confidence import PostgresConfidenceStore, score_confidence
+
+    agreed = PostgresConfidenceStore(
+        connection_factory=_confidence_loader_connection,
+    ).load_unscored_claims("surface-codes")
+    disagreed = PostgresConfidenceStore(
+        connection_factory=_disagreeing_confidence_loader_connection,
+    ).load_unscored_claims("surface-codes")
+
+    assert len(agreed) == len(disagreed) == 1
+    _assert_only_factor_changed(
+        score_confidence(disagreed[0]),
+        score_confidence(agreed[0]),
+        "self_consistency",
+    )
 
 
 def test_postgres_loader_uses_persisted_validation_outcomes() -> None:
@@ -350,6 +368,45 @@ def test_extraction_persists_validation_outcomes_for_confidence(
     assert result.claims == 1
     assert persisted[0]["validation_accepted"] == 1
     assert persisted[0]["validation_rejected"] == 2
+
+
+def test_extraction_records_passage_anchored_claim_observations() -> None:
+    from ai_researcher.db.models import claim_extraction_observation
+    from ai_researcher.extraction.pipeline import _record_claim_observation
+    from ai_researcher.extraction.schema import ClaimRecord
+
+    statements: list[Any] = []
+
+    class RecordingConnection:
+        def execute(self, statement) -> None:
+            statements.append(statement)
+
+    record = ClaimRecord(
+        tree_node_id=11,
+        claim_text="The decoder reduces logical error rates.",
+        normalized_text="decoder reduces logical error rates",
+        claim_type="result",
+        extraction_model="codex",
+        prompt_version="v2",
+    )
+
+    _record_claim_observation(
+        RecordingConnection(),
+        claim_id=7,
+        paper_id=5,
+        record=record,
+    )
+
+    assert len(statements) == 1
+    assert statements[0].table is claim_extraction_observation
+    assert statements[0].compile().params == {
+        "claim_id": 7,
+        "paper_id": 5,
+        "tree_node_id": 11,
+        "claim_text": "The decoder reduces logical error rates.",
+        "extraction_model": "codex",
+        "prompt_version": "v2",
+    }
 
 
 def test_extract_scores_by_default_and_no_score_disables_it(
@@ -493,6 +550,8 @@ class _RowsResult:
 
 
 class _ConfidenceLoaderConnection:
+    repeated_claim_text = "The decoder reduces logical error rates."
+
     def execute(self, statement) -> _RowsResult:
         sql = str(statement)
         if "FROM scope" in sql:
@@ -535,6 +594,27 @@ class _ConfidenceLoaderConnection:
                     },
                 )
             )
+        if "FROM claim_extraction_observation" in sql:
+            assert "claim_extraction_observation.claim_id IN" in sql
+            return _RowsResult(
+                rows=(
+                    {
+                        "id": 1,
+                        "claim_id": 7,
+                        "claim_text": self.repeated_claim_text,
+                    },
+                    {
+                        "id": 2,
+                        "claim_id": 7,
+                        "claim_text": "The decoder reduces logical error rates.",
+                    },
+                    {
+                        "id": 3,
+                        "claim_id": 8,
+                        "claim_text": "The decoder reduces logical error rates.",
+                    },
+                )
+            )
         if "FROM claim" in sql:
             return _RowsResult(
                 rows=(
@@ -556,3 +636,12 @@ class _ConfidenceLoaderConnection:
 @contextmanager
 def _confidence_loader_connection():
     yield _ConfidenceLoaderConnection()
+
+
+class _DisagreeingConfidenceLoaderConnection(_ConfidenceLoaderConnection):
+    repeated_claim_text = "The experiment reports a longer runtime."
+
+
+@contextmanager
+def _disagreeing_confidence_loader_connection():
+    yield _DisagreeingConfidenceLoaderConnection()
