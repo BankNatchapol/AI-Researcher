@@ -2,14 +2,79 @@
 
 from __future__ import annotations
 
+import os
+import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+from sqlalchemy import create_engine, insert, select, update
+from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.exc import SQLAlchemyError
 from typer.testing import CliRunner
 
 from ai_researcher.cli import app
+
+
+def _pg8000_url(url: str):
+    return make_url(url).set(drivername="postgresql+pg8000")
+
+
+@pytest.fixture
+def confidence_database_url() -> str:
+    url = os.environ.get(
+        "AI_RESEARCHER_TEST_DATABASE_URL",
+        os.environ.get(
+            "DATABASE_URL",
+            "postgresql://postgres:issue3@127.0.0.1:55432/ai_researcher_test",
+        ),
+    )
+    engine = create_engine(_pg8000_url(url), connect_args={"timeout": 2})
+    try:
+        with engine.connect():
+            pass
+    except SQLAlchemyError:
+        pytest.skip("PostgreSQL test database is unavailable")
+    finally:
+        engine.dispose()
+    return url
+
+
+@pytest.fixture
+def confidence_database(
+    confidence_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[Engine]:
+    database_name = f"test_confidence_{uuid.uuid4().hex}"
+    admin_engine = create_engine(
+        _pg8000_url(confidence_database_url),
+        isolation_level="AUTOCOMMIT",
+    )
+    with admin_engine.connect() as connection:
+        connection.exec_driver_sql(f'CREATE DATABASE "{database_name}"')
+
+    scoped_url = make_url(confidence_database_url).set(database=database_name)
+    database_engine = create_engine(_pg8000_url(scoped_url))
+    monkeypatch.setenv("DATABASE_URL", scoped_url.render_as_string(hide_password=False))
+    monkeypatch.setenv("GROBID_URL", "http://localhost:8070")
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "codex")
+    monkeypatch.setenv("CONTACT_EMAIL", "researcher@example.com")
+
+    from ai_researcher.db.migrate import migrate
+
+    migrate()
+
+    try:
+        yield database_engine
+    finally:
+        database_engine.dispose()
+        with admin_engine.connect() as connection:
+            connection.exec_driver_sql(f'DROP DATABASE "{database_name}" WITH (FORCE)')
+        admin_engine.dispose()
 
 
 def _claim(**overrides: Any):
@@ -292,6 +357,212 @@ def test_postgres_loader_watches_evidence_and_retrieval_freshness() -> None:
         ).load_unscored_claims("surface-codes")
         == ()
     )
+
+
+def test_default_dedup_refreshes_scores_created_by_prior_no_dedup_run(
+    confidence_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Canonicalizing linked claims must refresh their supporting-node factor."""
+
+    from ai_researcher.db.models import (
+        claim,
+        claim_evidence,
+        claim_extraction_observation,
+        claim_score,
+        paper,
+        paper_extraction_state,
+        paper_scope,
+        retrieval_trace,
+        section,
+        tree_node,
+    )
+    from ai_researcher.db.models import scope as scope_table
+    from ai_researcher.evidence import identity, link
+    from ai_researcher.extraction import pipeline
+
+    with confidence_database.begin() as connection:
+        scope_id = int(
+            connection.execute(
+                insert(scope_table)
+                .values(
+                    name="surface-codes",
+                    description="Surface-code literature",
+                    include_terms=["surface code"],
+                    exclude_terms=[],
+                    categories=["quant-ph"],
+                    per_source_limit=10,
+                )
+                .returning(scope_table.c.id)
+            ).scalar_one()
+        )
+        claim_ids: list[int] = []
+        for paper_number, claim_text in (
+            (1, "The decoder lowered logical error rate to 0.01."),
+            (2, "Logical error rate fell to 0.01 with the decoder."),
+        ):
+            paper_id = int(
+                connection.execute(
+                    insert(paper)
+                    .values(title=f"Paper {paper_number}", parse_status="parsed")
+                    .returning(paper.c.id)
+                ).scalar_one()
+            )
+            connection.execute(insert(paper_scope).values(paper_id=paper_id, scope_id=scope_id))
+            section_id = int(
+                connection.execute(
+                    insert(section)
+                    .values(
+                        paper_id=paper_id,
+                        section_path="Results",
+                        ordinal=0,
+                        body_text=claim_text,
+                    )
+                    .returning(section.c.id)
+                ).scalar_one()
+            )
+            node_id = int(
+                connection.execute(
+                    insert(tree_node)
+                    .values(
+                        paper_id=paper_id,
+                        section_id=section_id,
+                        node_path="Results",
+                        summary=claim_text,
+                        depth=0,
+                        tree_schema_version="1",
+                        summary_model="codex",
+                    )
+                    .returning(tree_node.c.id)
+                ).scalar_one()
+            )
+            claim_id = int(
+                connection.execute(
+                    insert(claim)
+                    .values(
+                        paper_id=paper_id,
+                        tree_node_id=node_id,
+                        claim_text=claim_text,
+                        normalized_text="decoder lowers logical error rate to 0.01",
+                        claim_type="measurement",
+                        predicate="logical error rate",
+                        object_value=0.01,
+                        extraction_model="codex",
+                        prompt_version="1",
+                    )
+                    .returning(claim.c.id)
+                ).scalar_one()
+            )
+            claim_ids.append(claim_id)
+            connection.execute(
+                insert(claim_extraction_observation).values(
+                    claim_id=claim_id,
+                    paper_id=paper_id,
+                    tree_node_id=node_id,
+                    claim_text=claim_text,
+                    extraction_model="codex",
+                    prompt_version="1",
+                )
+            )
+            connection.execute(
+                insert(paper_extraction_state).values(
+                    paper_id=paper_id,
+                    extraction_model="codex",
+                    prompt_version="1",
+                    validation_accepted=1,
+                    validation_rejected=0,
+                )
+            )
+            connection.execute(
+                insert(claim_evidence).values(
+                    claim_id=claim_id,
+                    tree_node_id=node_id,
+                    paper_id=paper_id,
+                    stance="supports",
+                    rationale_text=claim_text,
+                )
+            )
+        connection.execute(
+            insert(retrieval_trace).values(
+                question="decoder lowers logical error rate to 0.01",
+                scope_id=scope_id,
+                expanded_node_ids=[],
+                selected_node_ids=[],
+                nodes_expanded=0,
+                stopped_reason="sufficient_evidence",
+            )
+        )
+
+    monkeypatch.setattr(
+        pipeline,
+        "extract_scope",
+        lambda scope_name: SimpleNamespace(
+            extracted=0,
+            skipped=2,
+            failed=0,
+            papers=(),
+        ),
+    )
+    monkeypatch.setattr(
+        link,
+        "link_scope_evidence",
+        lambda scope_name: SimpleNamespace(
+            claims_linked=0,
+            evidence_links=0,
+            failed=0,
+        ),
+    )
+    monkeypatch.setattr(
+        identity.gateway,
+        "complete",
+        lambda *args, **kwargs: {
+            "comparisons": [
+                {
+                    "left_id": claim_ids[0],
+                    "right_id": claim_ids[1],
+                    "same_claim": True,
+                }
+            ]
+        },
+    )
+    runner = CliRunner()
+
+    no_dedup = runner.invoke(app, ["extract", "surface-codes", "--no-dedup"])
+    assert no_dedup.exit_code == 0
+    assert "Confidence scoring complete: scored=2 failed=0." in no_dedup.stdout
+
+    with confidence_database.connect() as connection:
+        initial_scores = connection.execute(
+            select(claim_score.c.claim_id, claim_score.c.confidence).order_by(
+                claim_score.c.claim_id,
+                claim_score.c.id,
+            )
+        ).all()
+    assert len(initial_scores) == 2
+    with confidence_database.begin() as connection:
+        connection.execute(
+            update(claim)
+            .where(claim.c.id == claim_ids[0])
+            .values(identity_checked_at=datetime(2020, 1, 1, tzinfo=UTC))
+        )
+
+    default_dedup = runner.invoke(app, ["extract", "surface-codes"])
+
+    assert default_dedup.exit_code == 0
+    assert "Claim canonicalization complete: pairs=1 canonical=1 merged=1." in (
+        default_dedup.stdout
+    )
+    assert "Confidence scoring complete: scored=2 failed=0." in default_dedup.stdout
+    with confidence_database.connect() as connection:
+        score_history = connection.execute(
+            select(claim_score.c.claim_id, claim_score.c.confidence).order_by(
+                claim_score.c.claim_id,
+                claim_score.c.id,
+            )
+        ).all()
+    root_scores = [confidence for claim_id, confidence in score_history if claim_id == claim_ids[0]]
+    assert len(root_scores) == 2
+    assert root_scores[-1] > root_scores[0]
 
 
 def test_production_repeated_run_agreement_changes_only_self_consistency() -> None:

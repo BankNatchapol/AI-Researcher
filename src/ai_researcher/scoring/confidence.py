@@ -187,7 +187,8 @@ class PostgresConfidenceStore:
                         latest_score_at.is_(None)
                         | (latest_score_at < latest_observation_at)
                         | (latest_score_at < latest_evidence_at)
-                        | (latest_score_at < latest_trace_at),
+                        | (latest_score_at < latest_trace_at)
+                        | (latest_score_at < claim_table.c.identity_checked_at),
                     )
                     .order_by(claim_table.c.id)
                 )
