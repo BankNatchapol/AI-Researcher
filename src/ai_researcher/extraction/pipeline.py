@@ -16,6 +16,7 @@ from ai_researcher.db import connect
 from ai_researcher.db.models import (
     claim,
     claim_evidence,
+    claim_extraction_observation,
     claim_score,
     dataset,
     method,
@@ -337,6 +338,8 @@ def extract_paper(
             batch=batch,
             extraction_model=model_name,
             prompt_version=version,
+            validation_accepted=len(outcome.accepted),
+            validation_rejected=len(outcome.rejected),
         )
 
     return ExtractionResult(
@@ -515,6 +518,8 @@ def _persist_extractions(
     batch: _AcceptedBatch,
     extraction_model: str,
     prompt_version: str,
+    validation_accepted: int,
+    validation_rejected: int,
 ) -> None:
     """Reconcile prior extractions and record durable per-paper completion."""
 
@@ -589,12 +594,16 @@ def _persist_extractions(
             paper_id=paper_id,
             extraction_model=extraction_model,
             prompt_version=prompt_version,
+            validation_accepted=validation_accepted,
+            validation_rejected=validation_rejected,
         )
         .on_conflict_do_update(
             index_elements=[paper_extraction_state.c.paper_id],
             set_={
                 "extraction_model": extraction_model,
                 "prompt_version": prompt_version,
+                "validation_accepted": validation_accepted,
+                "validation_rejected": validation_rejected,
                 "completed_at": func.current_timestamp(),
             },
         )
@@ -694,13 +703,47 @@ def _reconcile_claims(
     for claim_id, record in matched:
         values = _claim_values(paper_id, record)
         connection.execute(update(claim).where(claim.c.id == claim_id).values(**values))
-    if new_records:
-        connection.execute(
-            insert(claim),
-            [_claim_values(paper_id, record) for record in new_records],
+        _record_claim_observation(
+            connection,
+            claim_id=claim_id,
+            paper_id=paper_id,
+            record=record,
+        )
+    for record in new_records:
+        claim_id = int(
+            connection.execute(
+                insert(claim).values(**_claim_values(paper_id, record)).returning(claim.c.id)
+            ).scalar_one()
+        )
+        _record_claim_observation(
+            connection,
+            claim_id=claim_id,
+            paper_id=paper_id,
+            record=record,
         )
     if stale_ids:
         connection.execute(delete(claim).where(claim.c.id.in_(stale_ids)))
+
+
+def _record_claim_observation(
+    connection: Connection,
+    *,
+    claim_id: int,
+    paper_id: int,
+    record: ClaimRecord,
+) -> None:
+    """Persist one passage-anchored outcome for repeated-run comparison."""
+
+    connection.execute(
+        insert(claim_extraction_observation).values(
+            claim_id=claim_id,
+            paper_id=paper_id,
+            tree_node_id=record.tree_node_id,
+            claim_text=record.claim_text,
+            extraction_model=record.extraction_model,
+            prompt_version=record.prompt_version,
+        )
+    )
 
 
 def _invalidate_identity_groups(

@@ -315,6 +315,39 @@ claim = Table(
     ),
 )
 
+claim_extraction_observation = Table(
+    "claim_extraction_observation",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "claim_id",
+        BigInteger,
+        ForeignKey("claim.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "tree_node_id",
+        BigInteger,
+        ForeignKey("tree_node.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("claim_text", Text, nullable=False),
+    Column("extraction_model", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column(
+        "recorded_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+)
+
 method = Table(
     "method",
     metadata,
@@ -438,6 +471,18 @@ paper_extraction_state = Table(
     Column("extraction_model", Text, nullable=False),
     Column("prompt_version", Text, nullable=False),
     Column(
+        "validation_accepted",
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+    ),
+    Column(
+        "validation_rejected",
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+    ),
+    Column(
         "completed_at",
         DateTime(timezone=True),
         nullable=False,
@@ -505,6 +550,7 @@ claim_score = Table(
 __all__ = [
     "claim",
     "claim_evidence",
+    "claim_extraction_observation",
     "claim_score",
     "dataset",
     "ingest_job",

@@ -1,0 +1,22 @@
+Issue #47 QA v2 verification
+Branch: issue-47-compute-the-pipeline-confidence-score
+Commit: a1f40d10e238f2a580ee47d4fb815b15fad8d636
+
+COMMAND: uv run pytest tests/test_confidence.py
+EXIT: 0
+RESULT: 12 passed in 1.11s
+
+COMMAND: uv run pytest
+EXIT: 0
+RESULT: 211 passed in 14.48s
+
+COMMAND: uv run ruff check .
+EXIT: 0
+RESULT: All checks passed!
+
+COMMAND: uv run ruff format --check .
+EXIT: 0
+RESULT: 101 files already formatted
+
+Visual evidence intentionally omitted: issue #47 changes backend scoring, persistence, and
+CLI behavior only, with no UI or visual acceptance criterion.

@@ -1,0 +1,30 @@
+Issue #47 QA v3 verification
+Branch head tested: 43e6341
+
+$ uv run pytest tests/test_confidence.py
+collected 16 items
+tests/test_confidence.py ................ [100%]
+16 passed in 1.43s
+exit code: 0
+
+$ uv run pytest -q \
+    tests/test_confidence.py::test_postgres_loader_does_not_treat_canonical_duplicates_as_repeated_runs \
+    tests/test_confidence.py::test_postgres_loader_uses_persisted_validation_outcomes \
+    tests/test_confidence.py::test_extraction_persists_validation_outcomes_for_confidence \
+    tests/test_confidence.py::test_extract_defers_scoring_until_transient_evidence_link_failures_clear
+.... [100%]
+4 passed in 0.13s
+exit code: 0
+
+$ uv run pytest
+collected 215 items
+215 passed in 14.22s
+exit code: 0
+
+$ uv run ruff check .
+All checks passed!
+exit code: 0
+
+$ uv run ruff format --check .
+101 files already formatted
+exit code: 0

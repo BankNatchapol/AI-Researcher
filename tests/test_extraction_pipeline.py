@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -18,6 +19,7 @@ from ai_researcher.cli import app
 from ai_researcher.db.models import (
     claim,
     claim_evidence,
+    claim_extraction_observation,
     claim_score,
     dataset,
     method,
@@ -26,6 +28,7 @@ from ai_researcher.db.models import (
     paper_extraction_state,
     paper_scope,
     result,
+    retrieval_trace,
     tree_node,
 )
 from ai_researcher.db.models import scope as scope_table
@@ -255,6 +258,112 @@ def _seed_scope_with_valid_section_fks(engine: Engine) -> tuple[int, int, list[i
     return parsed_id, abstract_id, parsed_node_ids, [abstract_node_id]
 
 
+def test_confidence_refreshes_when_evidence_and_trace_arrive_after_initial_score(
+    isolated_database: Engine,
+) -> None:
+    """A score written by --no-link-evidence must not freeze incomplete inputs."""
+
+    from ai_researcher.scoring.confidence import score_scope_confidence
+
+    parsed_id, _abstract_id, parsed_nodes, _abstract_nodes = _seed_scope_with_valid_section_fks(
+        isolated_database
+    )
+    initial_input_at = datetime(2026, 1, 1, tzinfo=UTC)
+    initial_score_at = datetime(2026, 2, 1, tzinfo=UTC)
+    linked_at = datetime(2026, 3, 1, tzinfo=UTC)
+    traced_at = datetime(2026, 4, 1, tzinfo=UTC)
+
+    with isolated_database.begin() as connection:
+        scope_id = int(
+            connection.execute(
+                select(scope_table.c.id).where(scope_table.c.name == "surface-codes")
+            ).scalar_one()
+        )
+        claim_id = int(
+            connection.execute(
+                insert(claim)
+                .values(
+                    paper_id=parsed_id,
+                    tree_node_id=parsed_nodes[0],
+                    claim_text="Intro body.",
+                    normalized_text="intro body",
+                    claim_type="fact",
+                    extraction_model="codex",
+                    prompt_version="1",
+                    created_at=initial_input_at,
+                )
+                .returning(claim.c.id)
+            ).scalar_one()
+        )
+        connection.execute(
+            insert(claim_extraction_observation).values(
+                claim_id=claim_id,
+                paper_id=parsed_id,
+                tree_node_id=parsed_nodes[0],
+                claim_text="Intro body.",
+                extraction_model="codex",
+                prompt_version="1",
+                recorded_at=initial_input_at,
+            )
+        )
+        connection.execute(
+            insert(paper_extraction_state).values(
+                paper_id=parsed_id,
+                extraction_model="codex",
+                prompt_version="1",
+                validation_accepted=1,
+                validation_rejected=0,
+                completed_at=initial_input_at,
+            )
+        )
+        connection.execute(
+            insert(claim_score).values(
+                claim_id=claim_id,
+                confidence=10,
+                evidence_quality=0,
+                rubric_version="pending-evidence-quality",
+                scored_at=initial_score_at,
+            )
+        )
+
+    assert score_scope_confidence("surface-codes").scored == 0
+
+    with isolated_database.begin() as connection:
+        connection.execute(
+            insert(claim_evidence).values(
+                claim_id=claim_id,
+                tree_node_id=parsed_nodes[0],
+                paper_id=parsed_id,
+                stance="supports",
+                rationale_text="Intro body.",
+                created_at=linked_at,
+            )
+        )
+        connection.execute(
+            insert(retrieval_trace).values(
+                question="intro body",
+                scope_id=scope_id,
+                expanded_node_ids=parsed_nodes,
+                selected_node_ids=[parsed_nodes[0]],
+                nodes_expanded=len(parsed_nodes),
+                stopped_reason="sufficient_evidence",
+                created_at=traced_at,
+            )
+        )
+
+    refreshed = score_scope_confidence("surface-codes")
+
+    assert refreshed.scored == 1
+    assert refreshed.scores[0].value > 10
+    with isolated_database.connect() as connection:
+        persisted_scores = connection.execute(
+            select(claim_score.c.confidence)
+            .where(claim_score.c.claim_id == claim_id)
+            .order_by(claim_score.c.id)
+        ).scalars()
+        assert list(persisted_scores) == [10, refreshed.scores[0].value]
+
+
 def test_extract_paper_batches_one_call_per_paper_not_per_node() -> None:
     from ai_researcher.extraction.pipeline import PaperExtractionInput, TreeNodeInput, extract_paper
     from ai_researcher.extraction.prompts import PROMPT_VERSION
@@ -312,6 +421,7 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
 ) -> None:
     from ai_researcher.extraction import prompts
     from ai_researcher.llm import gateway
+    from ai_researcher.scoring.confidence import score_scope_confidence
 
     parsed_id, abstract_id, parsed_nodes, abstract_nodes = _seed_scope_with_valid_section_fks(
         isolated_database
@@ -347,15 +457,22 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
     assert "skipped 0" in first.stdout
     assert "failed 0" in first.stdout
     assert call_count == 2  # one call per paper, not per node
+    assert score_scope_confidence("surface-codes").scored == 4
 
     with isolated_database.connect() as connection:
         claim_rows = connection.execute(select(claim)).mappings().all()
+        observation_rows = connection.execute(select(claim_extraction_observation)).mappings().all()
+        initial_score_count = connection.execute(
+            select(func.count()).select_from(claim_score)
+        ).scalar_one()
         method_rows = connection.execute(select(method)).mappings().all()
         result_rows = connection.execute(select(result)).mappings().all()
         dataset_rows = connection.execute(select(dataset)).mappings().all()
         metric_rows = connection.execute(select(metric)).mappings().all()
 
     assert len(claim_rows) == 4  # 3 parsed nodes + 1 abstract node
+    assert len(observation_rows) == 4
+    assert initial_score_count == 4
     assert len(method_rows) == 4
     assert len(result_rows) == 4
     assert len(dataset_rows) == 4
@@ -383,6 +500,7 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
     assert "extracted 2" in third.stdout
     assert "skipped 0" in third.stdout
     assert call_count == 2
+    assert score_scope_confidence("surface-codes").scored == 4
 
     with isolated_database.connect() as connection:
         versions = {
@@ -390,8 +508,20 @@ def test_extract_cli_clean_resume_prompt_bump_and_paper_failure(
             for row in connection.execute(select(claim.c.prompt_version)).mappings().all()
         }
         claim_count = connection.execute(select(func.count()).select_from(claim)).scalar_one()
+        observation_versions = connection.execute(
+            select(
+                claim_extraction_observation.c.claim_id,
+                claim_extraction_observation.c.prompt_version,
+            )
+        ).all()
+        refreshed_score_count = connection.execute(
+            select(func.count()).select_from(claim_score)
+        ).scalar_one()
     assert versions == {"2"}
     assert claim_count == 4
+    assert len(observation_versions) == 8
+    assert {row.prompt_version for row in observation_versions} == {"1", "2"}
+    assert refreshed_score_count == 8
 
     # Per-paper failure continues the run: wipe one paper's extractions, fail that paper.
     with isolated_database.begin() as connection:
@@ -658,7 +788,7 @@ def test_prompt_bump_preserves_claim_identity_and_dependents(
 
     monkeypatch.setattr(gateway, "complete", fake_complete)
     runner = CliRunner()
-    initial = runner.invoke(app, ["extract", "surface-codes"])
+    initial = runner.invoke(app, ["extract", "surface-codes", "--no-score"])
     assert initial.exit_code == 0, initial.output
 
     with isolated_database.begin() as connection:
@@ -685,7 +815,7 @@ def test_prompt_bump_preserves_claim_identity_and_dependents(
         )
 
     monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
-    bumped = runner.invoke(app, ["extract", "surface-codes"])
+    bumped = runner.invoke(app, ["extract", "surface-codes", "--no-score"])
 
     assert bumped.exit_code == 0, bumped.output
     with isolated_database.connect() as connection:

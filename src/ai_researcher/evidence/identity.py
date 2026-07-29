@@ -132,13 +132,17 @@ class PostgresClaimIdentityStore:
             for group in groups:
                 if group.canonical_id not in group.claim_ids:
                     raise ValueError("Canonical claim must be a member of its group")
+                identity_changed_at = func.now()
                 duplicate_ids = [
                     claim_id for claim_id in group.claim_ids if claim_id != group.canonical_id
                 ]
                 connection.execute(
                     update(claim_table)
                     .where(claim_table.c.id == group.canonical_id)
-                    .values(canonical_claim_id=None)
+                    .values(
+                        canonical_claim_id=None,
+                        identity_checked_at=identity_changed_at,
+                    )
                 )
                 if duplicate_ids:
                     connection.execute(
@@ -149,7 +153,10 @@ class PostgresClaimIdentityStore:
                                 claim_table.c.canonical_claim_id.in_(duplicate_ids),
                             )
                         )
-                        .values(canonical_claim_id=group.canonical_id)
+                        .values(
+                            canonical_claim_id=group.canonical_id,
+                            identity_checked_at=identity_changed_at,
+                        )
                     )
                 evidence_rows = (
                     connection.execute(
