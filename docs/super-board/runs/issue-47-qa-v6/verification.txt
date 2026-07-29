@@ -1,0 +1,30 @@
+Issue #47 QA v6 verification
+Builder head tested: 9e9d3d6
+
+$ uv run pytest tests/test_confidence.py
+collected 20 items
+tests/test_confidence.py .................... [100%]
+20 passed in 1.52s
+exit code: 0
+
+$ uv run pytest tests/test_confidence.py::test_default_dedup_refreshes_scores_created_by_prior_no_dedup_run -vv
+collected 1 item
+tests/test_confidence.py::test_default_dedup_refreshes_scores_created_by_prior_no_dedup_run PASSED [100%]
+1 passed in 0.30s
+exit code: 0
+
+$ uv run pytest
+collected 220 items
+220 passed in 13.75s
+exit code: 0
+
+$ uv run ruff check .
+All checks passed!
+exit code: 0
+
+$ uv run ruff format --check .
+101 files already formatted
+exit code: 0
+
+$ git diff --check origin/main...HEAD
+exit code: 0
