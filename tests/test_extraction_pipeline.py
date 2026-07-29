@@ -818,3 +818,149 @@ def test_reextraction_invalidates_identity_marker_when_value_changes_into_overla
     assert "pairs=1" in second.output
     assert len(identity_calls) == 1
     assert len(identity_calls[0]) == 1
+
+
+def test_reextraction_detaches_old_canonical_member_when_root_value_diverges(
+    isolated_database: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An updated canonical root must not retain a now-incompatible member.
+
+    Re-extraction can change a canonical root's identity-driving quantity while
+    a preserved original still points at that root. Clearing only the root's
+    identity_checked_at marker is insufficient: the old member remains hidden
+    from identity loading and keeps an invalid canonical_claim_id. The existing
+    group must be invalidated before the updated roots are canonicalized again.
+    """
+
+    from ai_researcher.extraction import prompts
+    from ai_researcher.llm import gateway
+
+    _parsed_id, _abstract_id, parsed_node_ids, abstract_node_ids = (
+        _seed_scope_with_valid_section_fks(isolated_database)
+    )
+    root_node, new_match_node = parsed_node_ids[:2]
+    old_member_node = abstract_node_ids[0]
+    root_value = {"value": 1.0}
+    identity_calls: list[list[tuple[int, int]]] = []
+
+    def claim_record(
+        node_id: int,
+        *,
+        normalized_text: str,
+        value: float,
+    ) -> dict[str, Any]:
+        return {
+            "record_type": "claim",
+            "tree_node_id": node_id,
+            "claim_text": f"{normalized_text} at {value}%.",
+            "normalized_text": normalized_text,
+            "claim_type": "measurement",
+            "predicate": "logical error threshold",
+            "object_value": value,
+            "unit": "%",
+            "extraction_model": "codex",
+            "prompt_version": prompts.PROMPT_VERSION,
+        }
+
+    def fake_complete(messages: list[dict], job: str, schema: dict | None = None) -> dict:
+        del schema
+        payload = json.loads(messages[-1]["content"])
+        if job == "extraction":
+            requested_node_ids = {
+                node["tree_node_id"]
+                for group in payload["section_groups"]
+                for node in group["nodes"]
+            }
+            records = []
+            if root_node in requested_node_ids:
+                records.extend(
+                    [
+                        claim_record(
+                            root_node,
+                            normalized_text="root threshold",
+                            value=root_value["value"],
+                        ),
+                        claim_record(
+                            new_match_node,
+                            normalized_text="new matching threshold",
+                            value=2.0,
+                        ),
+                    ]
+                )
+            if old_member_node in requested_node_ids:
+                records.append(
+                    claim_record(
+                        old_member_node,
+                        normalized_text="old member threshold",
+                        value=1.0,
+                    )
+                )
+            return {"records": records}
+        if job == "claim_identity":
+            pairs = [
+                (candidate["left"]["id"], candidate["right"]["id"])
+                for candidate in payload["candidate_pairs"]
+            ]
+            identity_calls.append(pairs)
+            return {
+                "comparisons": [
+                    {"left_id": left_id, "right_id": right_id, "same_claim": True}
+                    for left_id, right_id in pairs
+                ]
+            }
+        raise AssertionError(f"unexpected job: {job}")
+
+    monkeypatch.setattr(gateway, "complete", fake_complete)
+    runner = CliRunner()
+
+    # Run 1: the root and old member are both 1%; the 2% claim is distinct.
+    first = runner.invoke(app, ["extract", "surface-codes", "--no-link-evidence"])
+    assert first.exit_code == 0, first.output
+    assert "pairs=1" in first.output
+
+    with isolated_database.connect() as connection:
+        initial_rows = {
+            int(row.tree_node_id): row
+            for row in connection.execute(
+                select(
+                    claim.c.id,
+                    claim.c.tree_node_id,
+                    claim.c.canonical_claim_id,
+                )
+            )
+        }
+    root_id = int(initial_rows[root_node].id)
+    new_match_id = int(initial_rows[new_match_node].id)
+    old_member_id = int(initial_rows[old_member_node].id)
+    assert initial_rows[root_node].canonical_claim_id is None
+    assert initial_rows[new_match_node].canonical_claim_id is None
+    assert initial_rows[old_member_node].canonical_claim_id == root_id
+    assert identity_calls == [[(root_id, old_member_id)]]
+
+    # Run 2: the canonical root moves to 2%. It should merge with the existing
+    # 2% root, while the preserved 1% original must be detached because it no
+    # longer overlaps the updated canonical proposition.
+    monkeypatch.setattr(prompts, "PROMPT_VERSION", "2")
+    root_value["value"] = 2.0
+    second = runner.invoke(app, ["extract", "surface-codes", "--no-link-evidence"])
+
+    assert second.exit_code == 0, second.output
+    assert "pairs=1" in second.output
+    assert identity_calls == [[(root_id, old_member_id)], [(root_id, new_match_id)]]
+
+    with isolated_database.connect() as connection:
+        final_rows = {
+            int(row.id): row
+            for row in connection.execute(
+                select(
+                    claim.c.id,
+                    claim.c.object_value,
+                    claim.c.canonical_claim_id,
+                )
+            )
+        }
+    assert final_rows[root_id].canonical_claim_id is None
+    assert final_rows[new_match_id].canonical_claim_id == root_id
+    assert final_rows[old_member_id].object_value == 1.0
+    assert final_rows[old_member_id].canonical_claim_id is None
