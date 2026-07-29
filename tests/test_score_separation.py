@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 PACKAGE_ROOT = Path(__file__).parents[1] / "src" / "ai_researcher"
 ARITHMETIC_CALLS = {
     "average",
@@ -71,8 +73,35 @@ def test_scoring_package_does_not_import_discourse() -> None:
             if isinstance(node, ast.Import):
                 modules = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom):
-                modules = [node.module or ""]
+                base_module = node.module or ""
+                modules = [
+                    base_module,
+                    *(
+                        f"{base_module}.{alias.name}" if base_module else alias.name
+                        for alias in node.names
+                    ),
+                ]
             if any(module == "discourse" or ".discourse" in module for module in modules):
                 violations.append(f"{path.relative_to(PACKAGE_ROOT)}:{node.lineno}")
 
     assert violations == [], "scoring imports discourse: " + ", ".join(violations)
+
+
+def test_discourse_gate_detects_from_package_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scoring_root = tmp_path / "scoring"
+    scoring_root.mkdir()
+    (scoring_root / "violation.py").write_text(
+        "from ai_researcher import discourse\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        test_scoring_package_does_not_import_discourse.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="scoring imports discourse"):
+        test_scoring_package_does_not_import_discourse()
