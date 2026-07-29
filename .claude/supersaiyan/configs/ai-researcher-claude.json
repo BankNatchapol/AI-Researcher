@@ -43,5 +43,6 @@
     "channel": "none",
     "chat_id": null,
     "bot_identity": "BankNatchapol"
-  }
+  },
+  "absolute_rebuild_ceiling": 4
 }

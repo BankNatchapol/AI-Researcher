@@ -46,5 +46,6 @@
   },
   "cursor": {
     "model": "cursor-grok-4.5-high"
-  }
+  },
+  "absolute_rebuild_ceiling": 4
 }
