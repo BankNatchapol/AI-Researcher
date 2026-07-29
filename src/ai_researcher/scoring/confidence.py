@@ -13,10 +13,10 @@ weights below describe pipeline behavior only and sum to 100:
 from __future__ import annotations
 
 import re
-from collections import Counter
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from typing import Any, Protocol
 
 from sqlalchemy import Connection, insert, select
@@ -446,12 +446,17 @@ def _coerce_claim(claim: ClaimLike) -> ConfidenceClaim:
 
 
 def _token_coverage(claim_text: str, body_text: str) -> float:
-    claim_tokens = Counter(_tokens(claim_text))
+    claim_tokens = _tokens(claim_text)
     if not claim_tokens:
         return 0.0
-    body_tokens = Counter(_tokens(body_text))
-    overlap = sum((claim_tokens & body_tokens).values())
-    return overlap / sum(claim_tokens.values())
+    body_tokens = _tokens(body_text)
+    longest_verbatim_span = SequenceMatcher(
+        None,
+        claim_tokens,
+        body_tokens,
+        autojunk=False,
+    ).find_longest_match()
+    return longest_verbatim_span.size / len(claim_tokens)
 
 
 def _self_consistency(claim_text: str, repeated_extractions: tuple[str, ...]) -> float:
