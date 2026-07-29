@@ -438,6 +438,18 @@ paper_extraction_state = Table(
     Column("extraction_model", Text, nullable=False),
     Column("prompt_version", Text, nullable=False),
     Column(
+        "validation_accepted",
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+    ),
+    Column(
+        "validation_rejected",
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+    ),
+    Column(
         "completed_at",
         DateTime(timezone=True),
         nullable=False,

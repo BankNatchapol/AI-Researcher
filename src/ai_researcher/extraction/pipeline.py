@@ -337,6 +337,8 @@ def extract_paper(
             batch=batch,
             extraction_model=model_name,
             prompt_version=version,
+            validation_accepted=len(outcome.accepted),
+            validation_rejected=len(outcome.rejected),
         )
 
     return ExtractionResult(
@@ -515,6 +517,8 @@ def _persist_extractions(
     batch: _AcceptedBatch,
     extraction_model: str,
     prompt_version: str,
+    validation_accepted: int,
+    validation_rejected: int,
 ) -> None:
     """Reconcile prior extractions and record durable per-paper completion."""
 
@@ -589,12 +593,16 @@ def _persist_extractions(
             paper_id=paper_id,
             extraction_model=extraction_model,
             prompt_version=prompt_version,
+            validation_accepted=validation_accepted,
+            validation_rejected=validation_rejected,
         )
         .on_conflict_do_update(
             index_elements=[paper_extraction_state.c.paper_id],
             set_={
                 "extraction_model": extraction_model,
                 "prompt_version": prompt_version,
+                "validation_accepted": validation_accepted,
+                "validation_rejected": validation_rejected,
                 "completed_at": func.current_timestamp(),
             },
         )

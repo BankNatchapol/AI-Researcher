@@ -218,7 +218,12 @@ def extract_corpus(
             f"canonical={identity_result.canonical_claims} "
             f"merged={identity_result.merged_claims}."
         )
-    if score_enabled:
+    if score_enabled and link_result is not None and link_result.failed:
+        typer.echo(
+            "Confidence scoring deferred: "
+            f"evidence linking failed for {link_result.failed} claim(s)."
+        )
+    elif score_enabled:
         from ai_researcher.scoring import confidence
 
         confidence_result = confidence.score_scope_confidence(scope_name)

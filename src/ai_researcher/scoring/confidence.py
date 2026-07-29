@@ -26,6 +26,7 @@ from ai_researcher.db.models import claim as claim_table
 from ai_researcher.db.models import (
     claim_evidence,
     claim_score,
+    paper_extraction_state,
     paper_scope,
     retrieval_trace,
     section,
@@ -146,9 +147,12 @@ class PostgresConfidenceStore:
                 connection.execute(
                     select(
                         claim_table.c.id,
+                        claim_table.c.paper_id,
                         claim_table.c.claim_text,
                         claim_table.c.normalized_text,
                         claim_table.c.canonical_claim_id,
+                        claim_table.c.extraction_model,
+                        claim_table.c.prompt_version,
                     )
                     .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
                     .where(
@@ -164,28 +168,33 @@ class PostgresConfidenceStore:
                 return ()
 
             root_ids = {int(row["canonical_claim_id"] or row["id"]) for row in candidates}
-            group_rows = (
+            paper_ids = {int(row["paper_id"]) for row in candidates}
+            validation_rows = (
                 connection.execute(
                     select(
-                        claim_table.c.id,
-                        claim_table.c.claim_text,
-                        claim_table.c.canonical_claim_id,
-                    ).where(
-                        (claim_table.c.id.in_(root_ids))
-                        | (claim_table.c.canonical_claim_id.in_(root_ids))
+                        paper_extraction_state.c.paper_id,
+                        paper_extraction_state.c.extraction_model,
+                        paper_extraction_state.c.prompt_version,
+                        paper_extraction_state.c.validation_accepted,
+                        paper_extraction_state.c.validation_rejected,
                     )
+                    .where(paper_extraction_state.c.paper_id.in_(paper_ids))
+                    .order_by(paper_extraction_state.c.paper_id)
                 )
                 .mappings()
                 .all()
             )
-            extractions_by_root: dict[int, list[tuple[int, str]]] = {
-                root_id: [] for root_id in root_ids
-            }
-            for row in group_rows:
-                root_id = int(row["canonical_claim_id"] or row["id"])
-                extractions_by_root.setdefault(root_id, []).append(
-                    (int(row["id"]), str(row["claim_text"]))
+            validation_by_extraction = {
+                (
+                    int(row["paper_id"]),
+                    str(row["extraction_model"]),
+                    str(row["prompt_version"]),
+                ): (
+                    int(row["validation_accepted"]),
+                    int(row["validation_rejected"]),
                 )
+                for row in validation_rows
+            }
 
             evidence_rows = (
                 connection.execute(
@@ -251,25 +260,31 @@ class PostgresConfidenceStore:
             claim_id = int(row["id"])
             root_id = int(row["canonical_claim_id"] or claim_id)
             normalized_text = str(row["normalized_text"]).strip()
-            repeated_extractions = tuple(
-                text
-                for extraction_id, text in extractions_by_root.get(root_id, ())
-                if extraction_id != claim_id
+            validation_accepted, validation_rejected = validation_by_extraction.get(
+                (
+                    int(row["paper_id"]),
+                    str(row["extraction_model"]),
+                    str(row["prompt_version"]),
+                ),
+                (0, 0),
             )
             claims.append(
                 ConfidenceClaim(
                     id=claim_id,
                     claim_text=str(row["claim_text"]),
                     supporting_nodes=tuple(nodes_by_root.get(root_id, ())),
-                    repeated_extractions=repeated_extractions,
+                    # Canonical group members are independent papers, not
+                    # repeated executions of the extraction pipeline. No
+                    # repeated-run history is persisted yet, so this signal is
+                    # explicitly unavailable instead of leaking replication
+                    # into pipeline confidence.
+                    repeated_extractions=(),
                     stopped_reason=stopped_reason_by_question.get(
                         normalized_text,
                         "no_candidates",
                     ),
-                    # Persisted claims passed schema validation. Rejected
-                    # records are never stored as claims.
-                    validation_accepted=1,
-                    validation_rejected=0,
+                    validation_accepted=validation_accepted,
+                    validation_rejected=validation_rejected,
                 )
             )
         return tuple(claims)

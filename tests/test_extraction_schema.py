@@ -168,7 +168,7 @@ def _seed_paper_and_tree_node(connection) -> tuple[int, int]:
 
 
 def test_models_define_extraction_tables() -> None:
-    from ai_researcher.db.models import metadata
+    from ai_researcher.db.models import metadata, paper_extraction_state
 
     assert set(metadata.tables["claim"].columns.keys()) == CLAIM_COLUMNS
     assert set(metadata.tables["method"].columns.keys()) == METHOD_COLUMNS
@@ -190,6 +190,8 @@ def test_models_define_extraction_tables() -> None:
     assert claim_score.c.evidence_quality.nullable is False
     assert "combined_score" not in claim_score.columns
     assert "score" not in claim_score.columns
+    assert paper_extraction_state.c.validation_accepted.nullable is False
+    assert paper_extraction_state.c.validation_rejected.nullable is False
 
 
 def test_extraction_migration_rejects_null_tree_node_and_invalid_stance(

@@ -178,6 +178,8 @@ EXPECTED_COLUMNS = {
         "paper_id",
         "extraction_model",
         "prompt_version",
+        "validation_accepted",
+        "validation_rejected",
         "completed_at",
     },
 }
@@ -261,6 +263,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert "Applied migration 0005_extraction" in first_run.output
     assert "Applied migration 0006_extraction_state" in first_run.output
     assert "Applied migration 0007_claim_identity_state" in first_run.output
+    assert "Applied migration 0008_confidence_validation_counts" in first_run.output
     assert second_run.exit_code == 0, second_run.output
     assert "already up to date" in second_run.output
 
@@ -289,7 +292,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
         actual_columns.setdefault(table_name, set()).add(column_name)
     for table_name, expected in EXPECTED_COLUMNS.items():
         assert actual_columns[table_name] == expected
-    assert len(applied) == 7
+    assert len(applied) == 8
     assert applied[0][0:2] == (1, "0001_initial")
     assert applied[1][0:2] == (2, "0002_paper_parse_error")
     assert applied[2][0:2] == (3, "0003_trees")
@@ -297,6 +300,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert applied[4][0:2] == (5, "0005_extraction")
     assert applied[5][0:2] == (6, "0006_extraction_state")
     assert applied[6][0:2] == (7, "0007_claim_identity_state")
+    assert applied[7][0:2] == (8, "0008_confidence_validation_counts")
     assert applied[0][2] is not None
     assert applied[1][2] is not None
     assert applied[2][2] is not None
@@ -304,6 +308,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert applied[4][2] is not None
     assert applied[5][2] is not None
     assert applied[6][2] is not None
+    assert applied[7][2] is not None
 
 
 @pytest.mark.parametrize("identifier", ["doi", "arxiv_id"])

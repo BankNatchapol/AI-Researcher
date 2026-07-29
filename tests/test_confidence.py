@@ -259,6 +259,99 @@ def test_postgres_store_targets_claim_score_confidence_without_quality_scoring()
     ]
 
 
+def test_postgres_loader_does_not_treat_canonical_duplicates_as_repeated_runs() -> None:
+    from ai_researcher.scoring.confidence import PostgresConfidenceStore
+
+    loaded = PostgresConfidenceStore(
+        connection_factory=_confidence_loader_connection,
+    ).load_unscored_claims("surface-codes")
+
+    assert len(loaded) == 1
+    assert loaded[0].repeated_extractions == ()
+
+
+def test_postgres_loader_uses_persisted_validation_outcomes() -> None:
+    from ai_researcher.scoring.confidence import PostgresConfidenceStore, score_confidence
+
+    loaded = PostgresConfidenceStore(
+        connection_factory=_confidence_loader_connection,
+    ).load_unscored_claims("surface-codes")
+
+    assert len(loaded) == 1
+    assert loaded[0].validation_accepted == 3
+    assert loaded[0].validation_rejected == 1
+    loaded_contribution = _contributions(score_confidence(loaded[0]))[
+        "schema_validation_cleanliness"
+    ]
+    clean_contribution = _contributions(
+        score_confidence(replace(loaded[0], validation_rejected=0))
+    )["schema_validation_cleanliness"]
+    assert loaded_contribution < clean_contribution
+
+
+def test_extraction_persists_validation_outcomes_for_confidence(
+    monkeypatch,
+) -> None:
+    from ai_researcher.extraction import pipeline
+    from ai_researcher.extraction.schema import ClaimRecord
+
+    accepted = ClaimRecord(
+        tree_node_id=11,
+        claim_text="The decoder reduces logical error rates.",
+        normalized_text="decoder reduces logical error rates",
+        claim_type="result",
+        extraction_model="codex",
+        prompt_version="v1",
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "validate_llm_output",
+        lambda fetch, allowed_ids: SimpleNamespace(
+            accepted=[accepted],
+            rejected=[object(), object()],
+            paper_failed=False,
+            failure_reason=None,
+        ),
+    )
+    persisted: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        pipeline,
+        "_persist_extractions",
+        lambda connection, **values: persisted.append(values),
+    )
+    paper_input = pipeline.PaperExtractionInput(
+        id=5,
+        title="Decoder study",
+        abstract=None,
+        parse_status="parsed",
+        nodes=(
+            pipeline.TreeNodeInput(
+                id=11,
+                node_path="results",
+                title="Results",
+                summary="Decoder results",
+                page_start=2,
+                page_end=2,
+                depth=0,
+                body_text="The decoder reduces logical error rates.",
+            ),
+        ),
+    )
+
+    result = pipeline.extract_paper(
+        paper_input,
+        complete_fn=lambda *args, **kwargs: {},
+        extraction_model="codex",
+        prompt_version="v1",
+        persist=True,
+        connection=object(),
+    )
+
+    assert result.claims == 1
+    assert persisted[0]["validation_accepted"] == 1
+    assert persisted[0]["validation_rejected"] == 2
+
+
 def test_extract_scores_by_default_and_no_score_disables_it(
     monkeypatch,
 ) -> None:
@@ -324,3 +417,142 @@ def test_extract_scores_by_default_and_no_score_disables_it(
     assert disabled_result.exit_code == 0
     assert "Confidence scoring complete" not in disabled_result.stdout
     assert score_calls == ["surface-codes"]
+
+
+def test_extract_defers_scoring_until_transient_evidence_link_failures_clear(
+    monkeypatch,
+) -> None:
+    from ai_researcher.evidence import link
+    from ai_researcher.extraction import pipeline
+    from ai_researcher.scoring import confidence
+
+    monkeypatch.setattr(
+        pipeline,
+        "extract_scope",
+        lambda scope_name: SimpleNamespace(
+            extracted=0,
+            skipped=0,
+            failed=0,
+            papers=(),
+        ),
+    )
+    link_results = iter(
+        (
+            SimpleNamespace(claims_linked=0, evidence_links=0, failed=1),
+            SimpleNamespace(claims_linked=1, evidence_links=2, failed=0),
+        )
+    )
+    monkeypatch.setattr(link, "link_scope_evidence", lambda scope_name: next(link_results))
+    score_calls: list[str] = []
+    monkeypatch.setattr(
+        confidence,
+        "score_scope_confidence",
+        lambda scope_name: (
+            score_calls.append(scope_name) or SimpleNamespace(scored=1, failed=0, scores=())
+        ),
+    )
+    runner = CliRunner()
+
+    failed_link = runner.invoke(
+        app,
+        ["extract", "surface-codes", "--no-dedup"],
+    )
+    successful_retry = runner.invoke(
+        app,
+        ["extract", "surface-codes", "--no-dedup"],
+    )
+
+    assert failed_link.exit_code == 0
+    assert "Confidence scoring deferred: evidence linking failed for 1 claim(s)." in (
+        failed_link.stdout
+    )
+    assert "Confidence scoring complete" not in failed_link.stdout
+    assert successful_retry.exit_code == 0
+    assert "Confidence scoring complete: scored=1 failed=0." in successful_retry.stdout
+    assert score_calls == ["surface-codes"]
+
+
+class _RowsResult:
+    def __init__(
+        self,
+        *,
+        rows: tuple[dict[str, Any], ...] = (),
+        scalar: int | None = None,
+    ) -> None:
+        self._rows = rows
+        self._scalar = scalar
+
+    def scalar_one_or_none(self) -> int | None:
+        return self._scalar
+
+    def mappings(self) -> _RowsResult:
+        return self
+
+    def all(self) -> list[dict[str, Any]]:
+        return list(self._rows)
+
+
+class _ConfidenceLoaderConnection:
+    def execute(self, statement) -> _RowsResult:
+        sql = str(statement)
+        if "FROM scope" in sql:
+            return _RowsResult(scalar=9)
+        if "FROM claim JOIN paper_scope" in sql:
+            return _RowsResult(
+                rows=(
+                    {
+                        "id": 7,
+                        "paper_id": 1,
+                        "claim_text": "The decoder reduces logical error rates.",
+                        "normalized_text": "decoder reduces logical error rates",
+                        "canonical_claim_id": None,
+                        "extraction_model": "codex",
+                        "prompt_version": "v1",
+                    },
+                )
+            )
+        if "FROM claim_evidence" in sql:
+            return _RowsResult()
+        if "FROM retrieval_trace" in sql:
+            return _RowsResult(
+                rows=(
+                    {
+                        "question": "decoder reduces logical error rates",
+                        "stopped_reason": "sufficient_evidence",
+                        "created_at": None,
+                    },
+                )
+            )
+        if "FROM paper_extraction_state" in sql:
+            return _RowsResult(
+                rows=(
+                    {
+                        "paper_id": 1,
+                        "extraction_model": "codex",
+                        "prompt_version": "v1",
+                        "validation_accepted": 3,
+                        "validation_rejected": 1,
+                    },
+                )
+            )
+        if "FROM claim" in sql:
+            return _RowsResult(
+                rows=(
+                    {
+                        "id": 7,
+                        "claim_text": "The decoder reduces logical error rates.",
+                        "canonical_claim_id": None,
+                    },
+                    {
+                        "id": 8,
+                        "claim_text": "The decoder reduces logical error rates.",
+                        "canonical_claim_id": 7,
+                    },
+                )
+            )
+        raise AssertionError(f"Unexpected confidence query: {sql}")
+
+
+@contextmanager
+def _confidence_loader_connection():
+    yield _ConfidenceLoaderConnection()
