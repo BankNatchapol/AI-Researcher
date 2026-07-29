@@ -1,0 +1,35 @@
+Issue #47 QA v5 verification
+Builder head tested: 3e5f2e2
+
+$ uv run pytest tests/test_confidence.py
+collected 19 items
+tests/test_confidence.py ................... [100%]
+19 passed in 1.23s
+exit code: 0
+
+$ uv run pytest tests/test_extraction_pipeline.py -k confidence_refreshes_when_evidence_and_trace_arrive_after_initial_score -vv
+collected 12 items / 11 deselected / 1 selected
+tests/test_extraction_pipeline.py::test_confidence_refreshes_when_evidence_and_trace_arrive_after_initial_score PASSED [100%]
+1 passed, 11 deselected in 0.32s
+exit code: 0
+
+$ uv run pytest tests/test_confidence.py -vv
+collected 19 items
+19 passed in 0.12s
+exit code: 0
+
+$ uv run pytest
+collected 219 items
+219 passed in 14.54s
+exit code: 0
+
+$ uv run ruff check .
+All checks passed!
+exit code: 0
+
+$ uv run ruff format --check .
+101 files already formatted
+exit code: 0
+
+$ git diff --check origin/main
+exit code: 0

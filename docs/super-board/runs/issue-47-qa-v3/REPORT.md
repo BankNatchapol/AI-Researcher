@@ -67,4 +67,3 @@ The four production-path tests below passed together:
 
 Intentionally omitted. Issue #47 changes backend scoring, persistence, and CLI
 orchestration only; it has no UI or visual acceptance criteria.
-
