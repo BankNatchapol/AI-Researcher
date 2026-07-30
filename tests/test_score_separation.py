@@ -262,7 +262,7 @@ def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
                 inherited_arithmetic_aliases,
             )
             for node in nodes:
-                is_arithmetic = isinstance(node, ast.BinOp) or (
+                is_arithmetic = isinstance(node, (ast.BinOp, ast.AugAssign)) or (
                     isinstance(node, ast.Call)
                     and (
                         _call_name(node) in ARITHMETIC_CALLS
