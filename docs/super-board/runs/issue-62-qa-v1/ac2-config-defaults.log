@@ -1,0 +1,4 @@
+reddit_subreddits= ('QuantumComputing', 'MachineLearning')
+reddit_client_id= None
+reddit_client_secret= None
+DEFAULTS_OK

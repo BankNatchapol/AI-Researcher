@@ -30,6 +30,9 @@ class Settings:
     storage_dir: Path
     shortlist_backend: str
     traversal_max_nodes: int
+    reddit_client_id: str | None
+    reddit_client_secret: str | None
+    reddit_subreddits: tuple[str, ...]
 
 
 def _required_environment_variable(name: str) -> str:
@@ -71,6 +74,16 @@ def _llm_backend_overrides() -> Mapping[str, str]:
     return MappingProxyType(overrides)
 
 
+def _optional_environment_variable(name: str) -> str | None:
+    value = os.environ.get(name)
+    return value if value else None
+
+
+def _reddit_subreddits() -> tuple[str, ...]:
+    raw = os.environ.get("REDDIT_SUBREDDITS", "QuantumComputing,MachineLearning")
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
 def _source_min_intervals() -> Mapping[str, float]:
     return MappingProxyType(
         {
@@ -89,6 +102,14 @@ def _source_min_intervals() -> Mapping[str, float]:
             "crossref": _nonnegative_float_environment_variable(
                 "CROSSREF_MIN_INTERVAL_SECONDS",
                 default=0.1,
+            ),
+            "reddit": _nonnegative_float_environment_variable(
+                "REDDIT_MIN_INTERVAL_SECONDS",
+                default=1.0,
+            ),
+            "hackernews": _nonnegative_float_environment_variable(
+                "HACKERNEWS_MIN_INTERVAL_SECONDS",
+                default=0.5,
             ),
         }
     )
@@ -118,4 +139,7 @@ def get_settings() -> Settings:
             "TRAVERSAL_MAX_NODES",
             default=40,
         ),
+        reddit_client_id=_optional_environment_variable("REDDIT_CLIENT_ID"),
+        reddit_client_secret=_optional_environment_variable("REDDIT_CLIENT_SECRET"),
+        reddit_subreddits=_reddit_subreddits(),
     )
