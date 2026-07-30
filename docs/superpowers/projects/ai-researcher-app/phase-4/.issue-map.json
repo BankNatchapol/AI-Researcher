@@ -1,0 +1,62 @@
+{
+  "01-discourse-schema": {
+    "number": 60,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/60",
+    "order": 1
+  },
+  "02-discourse-protocol-and-invariants": {
+    "number": 61,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/61",
+    "order": 2
+  },
+  "03-reddit-hackernews-adapters": {
+    "number": 62,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/62",
+    "order": 3
+  },
+  "04-rss-and-huggingface-adapters": {
+    "number": 63,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/63",
+    "order": 4
+  },
+  "05-paper-link-resolution": {
+    "number": 64,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/64",
+    "order": 5
+  },
+  "06-subscriptions-cli": {
+    "number": 65,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/65",
+    "order": 6
+  },
+  "07-evidence-sweep": {
+    "number": 66,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/66",
+    "order": 7
+  },
+  "08-discourse-sweep": {
+    "number": 67,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/67",
+    "order": 8
+  },
+  "09-change-detection": {
+    "number": 68,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/68",
+    "order": 9
+  },
+  "10-digest-builder": {
+    "number": 69,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/69",
+    "order": 10
+  },
+  "11-scheduler": {
+    "number": 70,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/70",
+    "order": 11
+  },
+  "12-scirate-spike": {
+    "number": 71,
+    "url": "https://github.com/BankNatchapol/AI-Researcher/issues/71",
+    "order": 12
+  }
+}
