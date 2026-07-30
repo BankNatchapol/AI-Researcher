@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-66-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-66-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 5 items
+
+tests/test_evidence_sweep.py::test_new_paper_sweep_writes_run_and_processes_end_to_end PASSED [ 20%]
+tests/test_evidence_sweep.py::test_empty_rerun_creates_zero_new_papers_and_exits_zero PASSED [ 40%]
+tests/test_evidence_sweep.py::test_ceiling_refusal_logs_and_stops_adding_papers PASSED [ 60%]
+tests/test_evidence_sweep.py::test_per_paper_failure_does_not_abort_sweep PASSED [ 80%]
+tests/test_evidence_sweep.py::test_cli_sweep_kind_evidence_exits_zero PASSED [100%]
+
+============================== 5 passed in 5.63s ===============================
