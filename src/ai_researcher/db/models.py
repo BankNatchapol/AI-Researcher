@@ -548,12 +548,138 @@ claim_score = Table(
     ),
 )
 
+discourse_source = Table(
+    "discourse_source",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("name", Text, nullable=False, unique=True),
+    Column("kind", Text, nullable=False),
+    Column("enabled", Boolean, nullable=False, server_default=text("true")),
+    Column("last_polled_at", DateTime(timezone=True)),
+)
+
+discourse_item = Table(
+    "discourse_item",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "source_id",
+        BigInteger,
+        ForeignKey("discourse_source.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("external_id", Text, nullable=False),
+    Column("url", Text, nullable=False),
+    Column("title", Text),
+    Column("author", Text),
+    Column("posted_at", DateTime(timezone=True)),
+    Column("score", Integer),
+    Column("num_comments", Integer),
+    Column(
+        "retrieved_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+    UniqueConstraint(
+        "source_id",
+        "external_id",
+        name="uq_discourse_item_source_external",
+    ),
+)
+
+discourse_mention = Table(
+    "discourse_mention",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "discourse_item_id",
+        BigInteger,
+        ForeignKey("discourse_item.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column(
+        "paper_id",
+        BigInteger,
+        ForeignKey("paper.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("resolved_by", Text, nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+    CheckConstraint(
+        "resolved_by IN ('arxiv', 'doi')",
+        name="ck_discourse_mention_resolved_by",
+    ),
+)
+
+subscription = Table(
+    "subscription",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("kind", Text, nullable=False),
+    Column(
+        "scope_id",
+        BigInteger,
+        ForeignKey("scope.id", ondelete="CASCADE"),
+    ),
+    Column(
+        "claim_id",
+        BigInteger,
+        ForeignKey("claim.id", ondelete="CASCADE"),
+    ),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+    Column("active", Boolean, nullable=False, server_default=text("true")),
+    CheckConstraint(
+        "kind IN ('topic', 'claim')",
+        name="ck_subscription_kind",
+    ),
+    CheckConstraint(
+        "(scope_id IS NOT NULL AND claim_id IS NULL)"
+        " OR (scope_id IS NULL AND claim_id IS NOT NULL)",
+        name="ck_subscription_exactly_one_target",
+    ),
+)
+
+sweep_run = Table(
+    "sweep_run",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("kind", Text, nullable=False),
+    Column(
+        "started_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    ),
+    Column("finished_at", DateTime(timezone=True)),
+    Column("state", Text, nullable=False),
+    Column("items_found", Integer, nullable=False, server_default=text("0")),
+    Column("error", Text),
+    CheckConstraint(
+        "kind IN ('evidence', 'discourse')",
+        name="ck_sweep_run_kind",
+    ),
+)
+
 __all__ = [
     "claim",
     "claim_evidence",
     "claim_extraction_observation",
     "claim_score",
     "dataset",
+    "discourse_item",
+    "discourse_mention",
+    "discourse_source",
     "ingest_job",
     "metadata",
     "method",
@@ -569,5 +695,7 @@ __all__ = [
     "scope",
     "section",
     "source",
+    "subscription",
+    "sweep_run",
     "tree_node",
 ]
