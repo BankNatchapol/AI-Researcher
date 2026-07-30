@@ -9,16 +9,15 @@ from time import monotonic, sleep
 from xml.etree import ElementTree
 
 from ai_researcher.config import get_settings
-from ai_researcher.discourse.base import DiscourseItem
+from ai_researcher.discourse.base import DiscourseItem, DiscourseLinkMixin
 from ai_researcher.logging import get_logger
 from ai_researcher.sources._http import Requester, SourceHttp, request_bytes
-from ai_researcher.sources.base import PaperRef
 
 _ATOM = "http://www.w3.org/2005/Atom"
 _logger = get_logger(__name__)
 
 
-class RssBlogsSource:
+class RssBlogsSource(DiscourseLinkMixin):
     """Poll every feed URL in ``DISCOURSE_RSS_FEEDS`` (RSS and Atom).
 
     Each configured URL is fetched independently. A malformed or unreachable
@@ -67,12 +66,6 @@ class RssBlogsSource:
                     error,
                 )
         return items
-
-    def link_targets(self, item: DiscourseItem) -> list[PaperRef]:
-        """Paper linking is shared logic landed in a later task."""
-
-        del item
-        return []
 
     @classmethod
     def _items_from_payload(cls, payload: bytes, since: datetime) -> list[DiscourseItem]:

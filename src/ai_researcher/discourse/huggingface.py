@@ -7,14 +7,13 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from time import monotonic, sleep
 
-from ai_researcher.discourse.base import DiscourseItem
+from ai_researcher.discourse.base import DiscourseItem, DiscourseLinkMixin
 from ai_researcher.sources._http import Requester, SourceHttp, request_bytes
-from ai_researcher.sources.base import PaperRef
 
 _DAILY_PAPERS_URL = "https://huggingface.co/api/daily_papers"
 
 
-class HuggingFacePapersSource:
+class HuggingFacePapersSource(DiscourseLinkMixin):
     """Poll Hugging Face daily papers (arXiv IDs with upvote attention counts)."""
 
     name = "huggingface"
@@ -37,12 +36,6 @@ class HuggingFacePapersSource:
         since_utc = since if since.tzinfo is not None else since.replace(tzinfo=UTC)
         payload = self._http.get(_DAILY_PAPERS_URL)
         return self._items_from_payload(payload, since_utc)
-
-    def link_targets(self, item: DiscourseItem) -> list[PaperRef]:
-        """Paper linking is shared logic landed in a later task."""
-
-        del item
-        return []
 
     @classmethod
     def _items_from_payload(cls, payload: bytes, since: datetime) -> list[DiscourseItem]:
