@@ -1,0 +1,4 @@
+src/ai_researcher/db/migrations/0011_discourse.sql:29:    CONSTRAINT ck_discourse_mention_resolved_by CHECK (
+src/ai_researcher/db/migrations/0011_discourse.sql:30:        resolved_by IN ('arxiv', 'doi')
+src/ai_researcher/db/models.py:615:        "resolved_by IN ('arxiv', 'doi')",
+src/ai_researcher/db/models.py:616:        name="ck_discourse_mention_resolved_by",
