@@ -27,10 +27,13 @@ def discourse_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HACKERNEWS_MIN_INTERVAL_SECONDS", "0")
     monkeypatch.setenv("RSS_MIN_INTERVAL_SECONDS", "0")
     monkeypatch.setenv("HUGGINGFACE_MIN_INTERVAL_SECONDS", "0")
+    monkeypatch.setenv("SCIRATE_MIN_INTERVAL_SECONDS", "0")
     monkeypatch.setenv("REDDIT_CLIENT_ID", "test-client-id")
     monkeypatch.setenv("REDDIT_CLIENT_SECRET", "test-client-secret")
     monkeypatch.delenv("REDDIT_SUBREDDITS", raising=False)
     monkeypatch.delenv("DISCOURSE_RSS_FEEDS", raising=False)
+    monkeypatch.delenv("DISCOURSE_SCIRATE_ENABLED", raising=False)
+    monkeypatch.delenv("DISCOURSE_SCIRATE_ARXIV_IDS", raising=False)
 
     for name in tuple(os.environ):
         if name.startswith("LLM_BACKEND_") and name != "LLM_BACKEND_DEFAULT":

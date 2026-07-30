@@ -5,8 +5,10 @@ from ai_researcher.discourse.huggingface import HuggingFacePapersSource
 from ai_researcher.discourse.reddit import RedditSource
 from ai_researcher.discourse.registry import register
 from ai_researcher.discourse.rss_blogs import RssBlogsSource
+from ai_researcher.discourse.scirate import SciRateSource
 
 register(RedditSource())
 register(HackerNewsSource())
 register(RssBlogsSource())
 register(HuggingFacePapersSource())
+register(SciRateSource())
