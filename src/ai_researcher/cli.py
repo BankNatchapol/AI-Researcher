@@ -501,17 +501,22 @@ def sweep_command(
     kind: str = typer.Option(
         ...,
         "--kind",
-        help="Sweep channel: evidence (discourse lands in a later task).",
+        help="Sweep channel: evidence or discourse.",
     ),
 ) -> None:
     """Run a monitoring sweep for subscribed topics or discourse sources."""
 
-    if kind != "evidence":
-        raise typer.BadParameter("Unsupported --kind (supported: evidence)")
+    if kind == "evidence":
+        from ai_researcher.monitor.sweep import run_evidence_sweep
 
-    from ai_researcher.monitor.sweep import run_evidence_sweep
+        result = run_evidence_sweep()
+    elif kind == "discourse":
+        from ai_researcher.monitor.discourse_sweep import run_discourse_sweep
 
-    result = run_evidence_sweep()
+        result = run_discourse_sweep()
+    else:
+        raise typer.BadParameter("Unsupported --kind (supported: evidence, discourse)")
+
     typer.echo(f"Sweep kind={result.kind} state={result.state} items_found={result.items_found}")
     if result.error:
         typer.echo(f"error: {result.error}", err=True)
