@@ -1,0 +1,4 @@
+DiscourseSource members: ['link_targets', 'poll']
+True True
+DiscourseItem fields: ['source', 'external_id', 'url', 'title', 'author', 'body', 'posted_at', 'score', 'num_comments']
+AC1 OK

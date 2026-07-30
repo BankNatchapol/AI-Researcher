@@ -1,0 +1,49 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-61-qa
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2
+collected 282 items
+
+tests/sources/test_arxiv.py ....                                         [  1%]
+tests/sources/test_crossref.py .                                         [  1%]
+tests/sources/test_openalex.py ....                                      [  3%]
+tests/sources/test_registry.py .....                                     [  4%]
+tests/sources/test_semantic_scholar.py ....                              [  6%]
+tests/test_acquire.py .............                                      [ 10%]
+tests/test_ask_cli.py .....                                              [ 12%]
+tests/test_channel_separation.py .....                                   [ 14%]
+tests/test_claim_identity.py ...........                                 [ 18%]
+tests/test_claims_surface.py .........                                   [ 21%]
+tests/test_cli_smoke.py .                                                [ 21%]
+tests/test_confidence.py ......................                          [ 29%]
+tests/test_config.py ....                                                [ 31%]
+tests/test_dedup.py .......                                              [ 33%]
+tests/test_discourse_registry.py ...                                     [ 34%]
+tests/test_discourse_schema.py ..                                        [ 35%]
+tests/test_eval_harness.py ....                                          [ 36%]
+tests/test_evidence_linking.py ......                                    [ 39%]
+tests/test_extraction_eval.py ......                                     [ 41%]
+tests/test_extraction_pipeline.py ............                           [ 45%]
+tests/test_extraction_schema.py ..                                       [ 46%]
+tests/test_extraction_validation.py .........                            [ 49%]
+tests/test_gateway.py ................                                   [ 54%]
+tests/test_ingest_pipeline.py .......                                    [ 57%]
+tests/test_mcp_server.py ......                                          [ 59%]
+tests/test_migrations.py ......                                          [ 61%]
+tests/test_no_direct_model_calls.py .....                                [ 63%]
+tests/test_parse.py ......                                               [ 65%]
+tests/test_quality.py ............                                       [ 69%]
+tests/test_scoping.py .......                                            [ 72%]
+tests/test_score_separation.py .......................                   [ 80%]
+tests/test_services_config.py ...                                        [ 81%]
+tests/test_shortlist.py ........                                         [ 84%]
+tests/test_status.py .....                                               [ 86%]
+tests/test_supersaiyan_dispatch_policy.py ............                   [ 90%]
+tests/test_synthesis.py ..........                                       [ 93%]
+tests/test_traversal.py .........                                        [ 97%]
+tests/test_tree_builder.py ......                                        [ 99%]
+tests/test_tree_schema.py ..                                             [100%]
+
+============================= 282 passed in 17.38s =============================
