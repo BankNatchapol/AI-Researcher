@@ -90,6 +90,19 @@ def _nodes_in_scope(scope: ast.AST) -> tuple[ast.AST, ...]:
     return tuple(nodes)
 
 
+def _nested_scopes(scope: ast.AST) -> tuple[ast.AST, ...]:
+    nested_scope_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+    scopes: list[ast.AST] = []
+    pending = list(ast.iter_child_nodes(scope))
+    while pending:
+        node = pending.pop()
+        if isinstance(node, nested_scope_types):
+            scopes.append(node)
+            continue
+        pending.extend(ast.iter_child_nodes(node))
+    return tuple(scopes)
+
+
 def _assignment(node: ast.AST) -> tuple[tuple[ast.AST, ...], ast.AST] | None:
     if isinstance(node, ast.Assign):
         return tuple(node.targets), node.value
@@ -119,8 +132,11 @@ def _resolved_score_fields(
     return fields
 
 
-def _score_aliases(nodes: tuple[ast.AST, ...]) -> dict[str, set[str]]:
-    aliases: dict[str, set[str]] = {}
+def _score_aliases(
+    nodes: tuple[ast.AST, ...],
+    inherited: dict[str, set[str]] | None = None,
+) -> dict[str, set[str]]:
+    aliases = {name: set(fields) for name, fields in (inherited or {}).items()}
     changed = True
     while changed:
         changed = False
@@ -210,24 +226,17 @@ def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
     violations: list[str] = []
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        module_nodes = _nodes_in_scope(tree)
-        module_arithmetic_aliases = _arithmetic_aliases(module_nodes)
-        scopes = (
-            tree,
-            *(
-                node
-                for node in ast.walk(tree)
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
-            ),
-        )
-        for scope in scopes:
+
+        def inspect_scope(
+            scope: ast.AST,
+            inherited_arithmetic: set[str],
+            inherited_scores: dict[str, set[str]],
+        ) -> None:
             nodes = _nodes_in_scope(scope)
-            aliases = _score_aliases(nodes)
-            inherited_arithmetic_aliases = (
-                set() if scope is tree else set(module_arithmetic_aliases)
-            )
+            aliases = _score_aliases(nodes, inherited_scores)
+            inherited_arithmetic_aliases = set(inherited_arithmetic)
             inherited_arithmetic_aliases.update(
-                _default_arithmetic_aliases(scope, inherited_arithmetic_aliases)
+                _default_arithmetic_aliases(scope, inherited_arithmetic)
             )
             arithmetic_aliases = _arithmetic_aliases(
                 nodes,
@@ -245,6 +254,11 @@ def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
                     continue
                 if {"confidence", "evidence_quality"} <= _resolved_score_fields(node, aliases):
                     violations.append(f"{path.relative_to(PACKAGE_ROOT)}:{node.lineno}")
+
+            for nested_scope in _nested_scopes(scope):
+                inspect_scope(nested_scope, arithmetic_aliases, aliases)
+
+        inspect_scope(tree, set(), {})
 
     message = "score arithmetic combines confidence and evidence_quality: " + ", ".join(violations)
     assert violations == [], message
@@ -305,6 +319,33 @@ def test_score_arithmetic_gate_detects_aliased_score_fields(
                 "    pipeline = row.confidence",
                 "    science = row.evidence_quality",
                 "    return (pipeline + science) / 2",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        test_no_module_performs_arithmetic_combining_the_two_scores.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="score arithmetic combines"):
+        test_no_module_performs_arithmetic_combining_the_two_scores()
+
+
+def test_score_arithmetic_gate_detects_score_aliases_captured_by_a_closure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "violation.py").write_text(
+        "\n".join(
+            (
+                "def make_blender(row):",
+                "    pipeline = row.confidence",
+                "    science = row.evidence_quality",
+                "    def blend():",
+                "        return pipeline + science",
+                "    return blend",
             )
         ),
         encoding="utf-8",
@@ -413,3 +454,31 @@ def test_score_arithmetic_gate_detects_aliased_arithmetic_callables(
 
     with pytest.raises(AssertionError, match="score arithmetic combines"):
         test_no_module_performs_arithmetic_combining_the_two_scores()
+
+
+def test_arithmetic_callable_aliases_do_not_leak_between_sibling_scopes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "allowed.py").write_text(
+        "\n".join(
+            (
+                "import operator",
+                "",
+                "def first(row):",
+                "    combine = operator.add",
+                "    return combine(row.confidence, 1)",
+                "",
+                "def second(row, combine):",
+                "    return combine(row.confidence, row.evidence_quality)",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        test_no_module_performs_arithmetic_combining_the_two_scores.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    test_no_module_performs_arithmetic_combining_the_two_scores()
