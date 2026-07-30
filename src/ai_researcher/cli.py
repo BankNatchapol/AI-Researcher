@@ -496,6 +496,27 @@ def unsubscribe_command(
     )
 
 
+@app.command("sweep")
+def sweep_command(
+    kind: str = typer.Option(
+        ...,
+        "--kind",
+        help="Sweep channel: evidence (discourse lands in a later task).",
+    ),
+) -> None:
+    """Run a monitoring sweep for subscribed topics or discourse sources."""
+
+    if kind != "evidence":
+        raise typer.BadParameter("Unsupported --kind (supported: evidence)")
+
+    from ai_researcher.monitor.sweep import run_evidence_sweep
+
+    result = run_evidence_sweep()
+    typer.echo(f"Sweep kind={result.kind} state={result.state} items_found={result.items_found}")
+    if result.error:
+        typer.echo(f"error: {result.error}", err=True)
+
+
 def _parse_date(value: str | None, option_name: str) -> date | None:
     if value is None:
         return None
