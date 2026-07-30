@@ -16,10 +16,11 @@ import re
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from datetime import date
 from difflib import SequenceMatcher
 from typing import Any, Protocol
 
-from sqlalchemy import Connection, func, insert, select
+from sqlalchemy import Connection, func, select
 
 from ai_researcher.db import connect
 from ai_researcher.db.models import claim as claim_table
@@ -27,6 +28,7 @@ from ai_researcher.db.models import (
     claim_evidence,
     claim_extraction_observation,
     claim_score,
+    paper,
     paper_extraction_state,
     paper_scope,
     retrieval_trace,
@@ -35,6 +37,12 @@ from ai_researcher.db.models import (
 )
 from ai_researcher.db.models import scope as scope_table
 from ai_researcher.logging import get_logger
+from ai_researcher.scoring.quality import (
+    PostgresQualityStore,
+    QualityEvidence,
+    QualityScore,
+    score_quality,
+)
 
 ConnectionFactory = Callable[[], AbstractContextManager[Connection]]
 ClaimLike = Mapping[str, Any] | Any
@@ -44,8 +52,6 @@ VERBATIM_OVERLAP_WEIGHT = 25.0
 SELF_CONSISTENCY_WEIGHT = 20.0
 STOPPED_REASON_WEIGHT = 20.0
 VALIDATION_CLEANLINESS_WEIGHT = 10.0
-PENDING_EVIDENCE_QUALITY = 0
-PENDING_RUBRIC_VERSION = "pending-evidence-quality"
 
 _STOPPED_REASON_VALUES = {
     "sufficient_evidence": 1.0,
@@ -76,6 +82,11 @@ class ConfidenceClaim:
     stopped_reason: str
     validation_accepted: int
     validation_rejected: int
+    parse_status: str = "abstract_only"
+    is_preprint: bool = True
+    venue: str | None = None
+    published_at: date | None = None
+    evidence: tuple[QualityEvidence, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,8 +134,13 @@ class ConfidenceStore(Protocol):
     def load_unscored_claims(self, scope_name: str) -> tuple[ClaimLike, ...]:
         """Return enriched claim inputs whose score is missing or stale."""
 
-    def save_confidence(self, claim_id: int, confidence: int) -> None:
-        """Persist only the pipeline confidence calculation."""
+    def save_confidence(
+        self,
+        claim_id: int,
+        confidence: int,
+        quality: QualityScore,
+    ) -> None:
+        """Persist independently computed confidence and evidence quality."""
 
 
 class PostgresConfidenceStore:
@@ -180,8 +196,13 @@ class PostgresConfidenceStore:
                         claim_table.c.canonical_claim_id,
                         claim_table.c.extraction_model,
                         claim_table.c.prompt_version,
+                        paper.c.parse_status,
+                        paper.c.is_preprint,
+                        paper.c.venue,
+                        paper.c.published_at,
                     )
                     .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
+                    .join(paper, paper.c.id == claim_table.c.paper_id)
                     .where(
                         paper_scope.c.scope_id == scope_id,
                         latest_score_at.is_(None)
@@ -258,6 +279,7 @@ class PostgresConfidenceStore:
                         claim_evidence.c.claim_id,
                         claim_evidence.c.tree_node_id,
                         claim_evidence.c.paper_id,
+                        claim_evidence.c.is_direct,
                         section.c.body_text,
                     )
                     .join(tree_node, tree_node.c.id == claim_evidence.c.tree_node_id)
@@ -272,12 +294,24 @@ class PostgresConfidenceStore:
                 .all()
             )
             nodes_by_root: dict[int, list[SupportingNode]] = {root_id: [] for root_id in root_ids}
+            evidence_by_root: dict[int, list[QualityEvidence]] = {
+                root_id: [] for root_id in root_ids
+            }
             for row in evidence_rows:
-                nodes_by_root[int(row["claim_id"])].append(
+                root_id = int(row["claim_id"])
+                nodes_by_root[root_id].append(
                     SupportingNode(
                         tree_node_id=int(row["tree_node_id"]),
                         body_text=str(row["body_text"] or ""),
                         paper_id=int(row["paper_id"]),
+                    )
+                )
+                evidence_by_root[root_id].append(
+                    QualityEvidence(
+                        tree_node_id=int(row["tree_node_id"]),
+                        paper_id=int(row["paper_id"]),
+                        stance="supports",
+                        is_direct=bool(row["is_direct"]),
                     )
                 )
 
@@ -348,21 +382,26 @@ class PostgresConfidenceStore:
                     ),
                     validation_accepted=validation_accepted,
                     validation_rejected=validation_rejected,
+                    parse_status=str(row.get("parse_status") or "abstract_only"),
+                    is_preprint=bool(row.get("is_preprint", True)),
+                    venue=(str(row["venue"]).strip() or None) if row.get("venue") else None,
+                    published_at=row.get("published_at"),
+                    evidence=tuple(evidence_by_root.get(root_id, ())),
                 )
             )
         return tuple(claims)
 
-    def save_confidence(self, claim_id: int, confidence: int) -> None:
-        with self._connection_factory() as connection:
-            connection.execute(
-                insert(claim_score).values(
-                    claim_id=claim_id,
-                    confidence=confidence,
-                    # Task 07 owns the real evidence-quality calculation.
-                    evidence_quality=PENDING_EVIDENCE_QUALITY,
-                    rubric_version=PENDING_RUBRIC_VERSION,
-                )
-            )
+    def save_confidence(
+        self,
+        claim_id: int,
+        confidence: int,
+        quality: QualityScore,
+    ) -> None:
+        PostgresQualityStore(self._connection_factory).save_quality(
+            claim_id=claim_id,
+            confidence=confidence,
+            quality=quality,
+        )
 
 
 def score_confidence(claim: ClaimLike) -> ConfidenceScore:
@@ -441,7 +480,8 @@ def score_scope_confidence(
         try:
             claim_id = _positive_integer(_field(claim, "id"), "id")
             result = score_confidence(claim)
-            confidence_store.save_confidence(claim_id, result.value)
+            quality = score_quality(claim)
+            confidence_store.save_confidence(claim_id, result.value, quality)
         except Exception:  # noqa: BLE001 — one claim must not abort the scope
             failed += 1
             logger.exception(

@@ -254,12 +254,13 @@ def test_persisted_claim_score_rows_carry_the_exact_rubric_version(tmp_path: Pat
     assert [row["evidence_quality"] for row in inserted] == [score.value for score in scores]
 
 
-def test_confidence_persistence_cannot_create_a_pending_rubric_version() -> None:
+def test_confidence_persistence_requires_computed_quality_and_current_rubric_version() -> None:
     from ai_researcher.db.models import claim_score
     from ai_researcher.scoring.confidence import PostgresConfidenceStore
-    from ai_researcher.scoring.quality import load_rubric
+    from ai_researcher.scoring.quality import load_rubric, score_quality
 
     inserted: list[dict[str, Any]] = []
+    quality = score_quality(_claim())
 
     class RecordingConnection:
         def execute(self, statement) -> None:
@@ -273,6 +274,8 @@ def test_confidence_persistence_cannot_create_a_pending_rubric_version() -> None
     PostgresConfidenceStore(connection_factory=connection_factory).save_confidence(
         claim_id=7,
         confidence=63,
+        quality=quality,
     )
 
     assert inserted[0]["rubric_version"] == load_rubric().version
+    assert inserted[0]["evidence_quality"] == quality.value

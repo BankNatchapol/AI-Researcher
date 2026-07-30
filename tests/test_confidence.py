@@ -282,7 +282,12 @@ def test_score_scope_writes_confidence_and_continues_past_claim_failures() -> No
             assert scope_name == "surface-codes"
             return (_claim(id=7), {"id": 8})
 
-        def save_confidence(self, claim_id: int, confidence: int) -> None:
+        def save_confidence(
+            self,
+            claim_id: int,
+            confidence: int,
+            quality: Any,
+        ) -> None:
             self.saved.append((claim_id, confidence))
 
     store = MemoryStore()
@@ -293,15 +298,59 @@ def test_score_scope_writes_confidence_and_continues_past_claim_failures() -> No
     assert store.saved == [(7, result.scores[0].value)]
 
 
-def test_postgres_store_targets_claim_score_confidence_without_quality_scoring() -> None:
-    from ai_researcher.db.models import claim_score
-    from ai_researcher.scoring.confidence import (
-        PENDING_EVIDENCE_QUALITY,
-        PENDING_RUBRIC_VERSION,
-        PostgresConfidenceStore,
+def test_score_scope_persists_independently_computed_quality_with_confidence() -> None:
+    from ai_researcher.scoring.confidence import score_scope_confidence
+    from ai_researcher.scoring.quality import QualityEvidence, QualityScore, score_quality
+
+    claim = _claim(
+        parse_status="parsed",
+        is_preprint=False,
+        venue="Physical Review Letters",
+        published_at=datetime.now(tz=UTC).date(),
+        evidence=(
+            QualityEvidence(
+                tree_node_id=11,
+                paper_id=101,
+                stance="supports",
+                is_direct=True,
+            ),
+        ),
     )
 
+    class MemoryStore:
+        def __init__(self) -> None:
+            self.saved: list[tuple[int, int, QualityScore]] = []
+
+        def load_unscored_claims(self, scope_name: str) -> tuple[Any, ...]:
+            assert scope_name == "surface-codes"
+            return (claim,)
+
+        def save_confidence(
+            self,
+            claim_id: int,
+            confidence: int,
+            quality: QualityScore,
+        ) -> None:
+            self.saved.append((claim_id, confidence, quality))
+
+    store = MemoryStore()
+    result = score_scope_confidence("surface-codes", store=store)
+
+    assert result.scored == 1
+    assert store.saved == [(7, result.scores[0].value, score_quality(claim))]
+
+
+def test_postgres_store_persists_both_scores_without_combining_them() -> None:
+    from ai_researcher.db.models import claim_score
+    from ai_researcher.scoring.confidence import PostgresConfidenceStore
+    from ai_researcher.scoring.quality import QualityScore
+
     inserted: list[dict[str, Any]] = []
+    quality = QualityScore(
+        value=71,
+        rubric_version="2+sha256:test",
+        factors=(),
+    )
 
     class RecordingConnection:
         def execute(self, statement) -> None:
@@ -312,14 +361,18 @@ def test_postgres_store_targets_claim_score_confidence_without_quality_scoring()
     def connection_factory():
         yield RecordingConnection()
 
-    PostgresConfidenceStore(connection_factory=connection_factory).save_confidence(7, 63)
+    PostgresConfidenceStore(connection_factory=connection_factory).save_confidence(
+        7,
+        63,
+        quality,
+    )
 
     assert inserted == [
         {
             "claim_id": 7,
             "confidence": 63,
-            "evidence_quality": PENDING_EVIDENCE_QUALITY,
-            "rubric_version": PENDING_RUBRIC_VERSION,
+            "evidence_quality": 71,
+            "rubric_version": "2+sha256:test",
         }
     ]
 
@@ -333,6 +386,71 @@ def test_postgres_loader_uses_prior_same_claim_observations_as_repeated_runs() -
 
     assert len(loaded) == 1
     assert loaded[0].repeated_extractions == ("The decoder reduces logical error rates.",)
+
+
+def test_postgres_loader_supplies_real_metadata_and_evidence_to_quality_scoring() -> None:
+    from ai_researcher.scoring.confidence import PostgresConfidenceStore
+    from ai_researcher.scoring.quality import QualityEvidence
+
+    published_at = datetime(2025, 1, 2, tzinfo=UTC).date()
+
+    class QualityInputConnection(_ConfidenceLoaderConnection):
+        def execute(self, statement) -> _RowsResult:
+            sql = str(statement)
+            if "FROM claim JOIN paper_scope" in sql:
+                return _RowsResult(
+                    rows=(
+                        {
+                            "id": 7,
+                            "paper_id": 1,
+                            "claim_text": "The decoder reduces logical error rates.",
+                            "normalized_text": "decoder reduces logical error rates",
+                            "canonical_claim_id": None,
+                            "extraction_model": "codex",
+                            "prompt_version": "v1",
+                            "parse_status": "parsed",
+                            "is_preprint": False,
+                            "venue": "Physical Review Letters",
+                            "published_at": published_at,
+                        },
+                    )
+                )
+            if "FROM claim_evidence" in sql:
+                return _RowsResult(
+                    rows=(
+                        {
+                            "claim_id": 7,
+                            "tree_node_id": 11,
+                            "paper_id": 101,
+                            "stance": "supports",
+                            "is_direct": True,
+                            "body_text": "The decoder reduces logical error rates.",
+                        },
+                    )
+                )
+            return super().execute(statement)
+
+    @contextmanager
+    def connection_factory():
+        yield QualityInputConnection()
+
+    loaded = PostgresConfidenceStore(
+        connection_factory=connection_factory,
+    ).load_unscored_claims("surface-codes")
+
+    assert len(loaded) == 1
+    assert loaded[0].parse_status == "parsed"
+    assert loaded[0].is_preprint is False
+    assert loaded[0].venue == "Physical Review Letters"
+    assert loaded[0].published_at == published_at
+    assert loaded[0].evidence == (
+        QualityEvidence(
+            tree_node_id=11,
+            paper_id=101,
+            stance="supports",
+            is_direct=True,
+        ),
+    )
 
 
 def test_postgres_loader_watches_evidence_and_retrieval_freshness() -> None:

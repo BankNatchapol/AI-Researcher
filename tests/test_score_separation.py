@@ -46,18 +46,95 @@ def _call_name(call: ast.Call) -> str | None:
     return None
 
 
+def _nodes_in_scope(scope: ast.AST) -> tuple[ast.AST, ...]:
+    nested_scopes = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+    nodes: list[ast.AST] = []
+    pending = list(ast.iter_child_nodes(scope))
+    while pending:
+        node = pending.pop()
+        if isinstance(node, nested_scopes):
+            continue
+        nodes.append(node)
+        pending.extend(ast.iter_child_nodes(node))
+    return tuple(nodes)
+
+
+def _assignment(node: ast.AST) -> tuple[tuple[ast.AST, ...], ast.AST] | None:
+    if isinstance(node, ast.Assign):
+        return tuple(node.targets), node.value
+    if isinstance(node, ast.AnnAssign) and node.value is not None:
+        return (node.target,), node.value
+    if isinstance(node, ast.NamedExpr):
+        return (node.target,), node.value
+    return None
+
+
+def _target_names(targets: tuple[ast.AST, ...]) -> set[str]:
+    return {
+        descendant.id
+        for target in targets
+        for descendant in ast.walk(target)
+        if isinstance(descendant, ast.Name)
+    }
+
+
+def _resolved_score_fields(
+    node: ast.AST,
+    aliases: dict[str, set[str]],
+) -> set[str]:
+    fields = _score_fields(node)
+    for name in tuple(fields):
+        fields.update(aliases.get(name, ()))
+    return fields
+
+
+def _score_aliases(nodes: tuple[ast.AST, ...]) -> dict[str, set[str]]:
+    aliases: dict[str, set[str]] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in nodes:
+            assignment = _assignment(node)
+            if assignment is None:
+                continue
+            targets, value = assignment
+            score_fields = _resolved_score_fields(value, aliases) & {
+                "confidence",
+                "evidence_quality",
+            }
+            if not score_fields:
+                continue
+            for target_name in _target_names(targets):
+                previous = aliases.setdefault(target_name, set())
+                before = len(previous)
+                previous.update(score_fields)
+                changed = changed or len(previous) != before
+    return aliases
+
+
 def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
     violations: list[str] = []
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            is_arithmetic = isinstance(node, ast.BinOp) or (
-                isinstance(node, ast.Call) and _call_name(node) in ARITHMETIC_CALLS
-            )
-            if not is_arithmetic:
-                continue
-            if {"confidence", "evidence_quality"} <= _score_fields(node):
-                violations.append(f"{path.relative_to(PACKAGE_ROOT)}:{node.lineno}")
+        scopes = (
+            tree,
+            *(
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
+            ),
+        )
+        for scope in scopes:
+            nodes = _nodes_in_scope(scope)
+            aliases = _score_aliases(nodes)
+            for node in nodes:
+                is_arithmetic = isinstance(node, ast.BinOp) or (
+                    isinstance(node, ast.Call) and _call_name(node) in ARITHMETIC_CALLS
+                )
+                if not is_arithmetic:
+                    continue
+                if {"confidence", "evidence_quality"} <= _resolved_score_fields(node, aliases):
+                    violations.append(f"{path.relative_to(PACKAGE_ROOT)}:{node.lineno}")
 
     message = "score arithmetic combines confidence and evidence_quality: " + ", ".join(violations)
     assert violations == [], message
