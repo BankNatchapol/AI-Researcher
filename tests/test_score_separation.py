@@ -317,6 +317,21 @@ def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
     assert violations == [], message
 
 
+def _is_discourse_package_module(module: str) -> bool:
+    """True only for the actual ``ai_researcher.discourse`` package, not lookalikes.
+
+    A plain substring check on ``.discourse`` also matches
+    ``ai_researcher.db.models.discourse_item``/``discourse_mention`` — DB table
+    objects legitimately imported elsewhere (e.g. ``digest/build.py``,
+    ``monitor/changes.py``), which have nothing to do with the discourse
+    polling package. Strip the ``ai_researcher.`` prefix (if present) and
+    require an exact ``discourse`` segment or ``discourse.`` sub-package.
+    """
+
+    candidate = module.removeprefix("ai_researcher.")
+    return candidate == "discourse" or candidate.startswith("discourse.")
+
+
 def test_scoring_package_does_not_import_discourse() -> None:
     violations: list[str] = []
     scoring_root = PACKAGE_ROOT / "scoring"
@@ -335,7 +350,7 @@ def test_scoring_package_does_not_import_discourse() -> None:
                         for alias in node.names
                     ),
                 ]
-            if any(module == "discourse" or ".discourse" in module for module in modules):
+            if any(_is_discourse_package_module(module) for module in modules):
                 violations.append(f"{path.relative_to(PACKAGE_ROOT)}:{node.lineno}")
 
     assert violations == [], "scoring imports discourse: " + ", ".join(violations)

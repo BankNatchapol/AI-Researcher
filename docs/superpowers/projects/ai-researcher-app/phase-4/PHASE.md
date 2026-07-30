@@ -143,8 +143,19 @@ work moves to future work. It must never block the phase.
    where `kind` is `evidence` or `discourse`.
 6. `DiscourseSource` is defined in `discourse/base.py` as a protocol distinct from
    `EvidenceSource`; a test asserts the two protocols share no base class.
-7. `scoring/` imports nothing from `discourse/`, and no discourse-derived value is ever
-   written to `claim_score`. Both are enforced by import-boundary tests that fail the build.
+7. `scoring/` imports nothing from `discourse/` — a complete, decidable import-boundary
+   test (checks the exact `ai_researcher.discourse` package path, not a loose substring).
+   No discourse-derived value is ever written to `claim_score`, enforced in three layers:
+   an AST scan for direct calls to `save_quality`/`save_confidence` from a discourse-importing
+   file (best-effort — it does not trace calls through `score_scope_confidence` or an
+   injected `score_fn`-style callable, the same kind of indirection that made Phase 3's AC4
+   gate an unbounded chase); a structural check that `ConfidenceClaim`/`QualityClaim`/
+   `QualityEvidence` (the fixed, enumerable set of fields either scoring function can ever
+   read) carry no discourse-flavored field, which is complete because a frozen dataclass's
+   fields can't be extended without changing its visible declaration; and a narrow check
+   that the one function loading those dataclasses from the database never references a
+   discourse table. The first layer is defense-in-depth; the second and third are the actual
+   guarantee for indirect callers.
 8. Reddit, Hacker News, RSS blogs, and Hugging Face/alphaXiv adapters each implement the
    protocol, are registered, and are unit-tested offline against recorded fixtures.
 9. The RSS adapter is configuration-driven: adding a feed means adding a URL to config, not
