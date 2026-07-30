@@ -1,0 +1,25 @@
+Using CPython 3.11.15
+Creating virtual environment at: .venv
+   Building ai-researcher @ file:///Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-68-qa
+      Built ai-researcher @ file:///Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-68-qa
+Installed 49 packages in 55ms
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-68-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-68-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 10 items
+
+tests/test_change_detection.py::test_quiet_period_produces_empty_changeset PASSED [ 10%]
+tests/test_change_detection.py::test_detects_new_papers_per_subscribed_scope PASSED [ 20%]
+tests/test_change_detection.py::test_detects_new_claim_evidence_for_subscribed_claims PASSED [ 30%]
+tests/test_change_detection.py::test_first_refutes_evidence_is_reported_as_stance_flip PASSED [ 40%]
+tests/test_change_detection.py::test_second_refutes_is_not_a_stance_flip PASSED [ 50%]
+tests/test_change_detection.py::test_score_movement_reports_separate_deltas_beyond_threshold PASSED [ 60%]
+tests/test_change_detection.py::test_score_movement_below_threshold_is_ignored PASSED [ 70%]
+tests/test_change_detection.py::test_pre_baseline_score_delta_is_not_re_reported PASSED [ 80%]
+tests/test_change_detection.py::test_score_movement_threshold_defaults_to_ten_and_is_configurable PASSED [ 90%]
+tests/test_change_detection.py::test_detects_new_discourse_mentions_for_papers_backing_subscribed_claims PASSED [100%]
+
+============================== 10 passed in 3.40s ==============================
