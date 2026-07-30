@@ -1,0 +1,19 @@
+=== AC2 live: airesearch eval --extraction --scope surface-codes ===
+Usage: airesearch eval [OPTIONS]
+Try 'airesearch eval --help' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value: Gold section_path 'Surface codes/Stabilizer operators' for    │
+│ 'stabilizer operators define the surface code parity checks' matches no      │
+│ section in scope 'surface-codes'                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+EXIT=2
+---
+=== AC2 live: transformers ===
+Usage: airesearch eval [OPTIONS]
+Try 'airesearch eval --help' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value: Gold section_path 'Model Architecture/Encoder and Decoder     │
+│ Stacks' for 'the transformer encoder and decoder are stacks of identical     │
+│ layers' matches no section in scope 'transformers'                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+EXIT=2

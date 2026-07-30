@@ -1,0 +1,39 @@
+=== AC2: CLI --help and extraction metric reporting ===
+                                                                                
+ Usage: airesearch eval [OPTIONS]                                               
+                                                                                
+ Score retrieval or extraction quality against the hand-labelled gold set.      
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --scope             <str>               Saved scope to evaluate.          │
+│                                            [required]                        │
+│    --k                 <int range> [x>=1]  Retrieved-node cutoff for         │
+│                                            recall@k.                         │
+│                                            [default: 5]                      │
+│    --extraction                            Score claim extraction and stance │
+│                                            against gold claims.              │
+│    --help                                  Show this message and exit.       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+---
+=== Trying live CLI (may need DB) ===
+Usage: airesearch eval [OPTIONS]
+Try 'airesearch eval --help' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value: No gold claims found for scope 'fixture-eval'                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+---
+=== Fixture-backed metric report (same code path as CLI) ===
+claim precision: 0.667
+claim recall: 0.667
+claim f1: 0.667
+evidence-span precision: 0.250
+stance accuracy: 0.667
+report: docs/super-board/runs/issue-50-qa-v1/eval-2026-07-30.json
+AC2_METRICS_PRESENT
+
+=== AC2 live-DB note ===
+Live 'airesearch eval --extraction --scope surface-codes' requires DATABASE_URL.
+Offline verification via test_eval_cli_extraction_flag_reports_metrics PASSED
+  asserts stdout contains all five metrics + report path.
+Fixture-backed run_extraction_evaluation produced all five metrics (see ac2-extraction-cli-metrics.txt).

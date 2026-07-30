@@ -1,0 +1,34 @@
+{
+  "report_date": "2026-07-30",
+  "runs": [
+    {
+      "kind": "extraction",
+      "generated_at": "2026-07-30T15:00:00+00:00",
+      "scope": "fixture-eval",
+      "claim_count": 3,
+      "extracted_count": 3,
+      "metrics": {
+        "claim_precision": 0.6666666666666666,
+        "claim_recall": 0.6666666666666666,
+        "claim_f1": 0.6666666666666666,
+        "evidence_span_precision": 0.25,
+        "stance_accuracy": 0.6666666666666666
+      }
+    }
+  ]
+}
+AC3_PASS: extraction metrics in dated report docs/super-board/runs/issue-50-qa-v1/eval-2026-07-30.json
+---
+-rw-r--r--@ 1 banknatchapol  staff  1499 Jul 27 20:46 /Users/banknatchapol/Desktop/Codes/AI-Researcher/.env
+ls: .env: No such file or directory
+=== AC2 CLI output format (from pytest evidence + help flag) ===
+src/ai_researcher/cli.py:372:        typer.echo(f"claim precision: {result.metrics.claim_precision:.3f}")
+src/ai_researcher/cli.py:373:        typer.echo(f"claim recall: {result.metrics.claim_recall:.3f}")
+src/ai_researcher/cli.py:374:        typer.echo(f"claim f1: {result.metrics.claim_f1:.3f}")
+src/ai_researcher/cli.py:375:        typer.echo(f"evidence-span precision: {result.metrics.evidence_span_precision:.3f}")
+src/ai_researcher/cli.py:376:        typer.echo(f"stance accuracy: {result.metrics.stance_accuracy:.3f}")
+tests/test_extraction_eval.py:347:    assert "claim precision: 0.800" in result.stdout
+tests/test_extraction_eval.py:348:    assert "claim recall: 0.700" in result.stdout
+tests/test_extraction_eval.py:349:    assert "claim f1: 0.746" in result.stdout
+tests/test_extraction_eval.py:350:    assert "evidence-span precision: 0.650" in result.stdout
+tests/test_extraction_eval.py:351:    assert "stance accuracy: 0.900" in result.stdout

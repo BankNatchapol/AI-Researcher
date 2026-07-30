@@ -1,0 +1,11 @@
+version: 1
+questions:
+  - question: placeholder
+    scope: fixture-eval
+    section_paths:
+      - Results/Threshold
+claims:
+  - normalized_text: a missing-path claim
+    scope: fixture-eval
+    section_path: Results/Does Not Exist
+    stance: supports

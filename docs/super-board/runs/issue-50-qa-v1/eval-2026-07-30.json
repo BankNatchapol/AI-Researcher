@@ -1,0 +1,19 @@
+{
+  "report_date": "2026-07-30",
+  "runs": [
+    {
+      "kind": "extraction",
+      "generated_at": "2026-07-30T15:00:00+00:00",
+      "scope": "fixture-eval",
+      "claim_count": 3,
+      "extracted_count": 3,
+      "metrics": {
+        "claim_precision": 0.6666666666666666,
+        "claim_recall": 0.6666666666666666,
+        "claim_f1": 0.6666666666666666,
+        "evidence_span_precision": 0.25,
+        "stance_accuracy": 0.6666666666666666
+      }
+    }
+  ]
+}
