@@ -1,0 +1,18 @@
+=== AC5: pytest tests/test_extraction_eval.py ===
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-50-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-50-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 6 items
+
+tests/test_extraction_eval.py::test_default_goldset_has_at_least_fifteen_labelled_claims PASSED [ 16%]
+tests/test_extraction_eval.py::test_gold_claims_fail_loudly_when_section_path_matches_no_known_section PASSED [ 33%]
+tests/test_extraction_eval.py::test_claim_matching_uses_normalized_text_and_quantity_parsing PASSED [ 50%]
+tests/test_extraction_eval.py::test_extraction_metrics_compute_precision_recall_f1_span_and_stance PASSED [ 66%]
+tests/test_extraction_eval.py::test_extraction_eval_appends_to_same_dated_report PASSED [ 83%]
+tests/test_extraction_eval.py::test_eval_cli_extraction_flag_reports_metrics PASSED [100%]
+
+============================== 6 passed in 0.95s ===============================
+EXIT=0

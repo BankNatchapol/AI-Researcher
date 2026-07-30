@@ -56,7 +56,46 @@
             }
           ]
         }
-      }
+      },
+      "extracted_claims": [
+        {
+          "normalized_text": "threshold is approximately 1 percent",
+          "object_value": 1.0,
+          "unit": "%",
+          "evidence": [
+            {
+              "section_path": "Results/Threshold",
+              "stance": "supports"
+            },
+            {
+              "section_path": "Introduction",
+              "stance": "mentions"
+            }
+          ]
+        },
+        {
+          "normalized_text": "minimum-weight perfect matching is the decoder",
+          "object_value": null,
+          "unit": null,
+          "evidence": [
+            {
+              "section_path": "Discussion/Limitations",
+              "stance": "supports"
+            }
+          ]
+        },
+        {
+          "normalized_text": "spurious extracted claim with no gold",
+          "object_value": null,
+          "unit": null,
+          "evidence": [
+            {
+              "section_path": "Introduction",
+              "stance": "mentions"
+            }
+          ]
+        }
+      ]
     }
   }
 }

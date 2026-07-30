@@ -1,0 +1,71 @@
+{
+  "report_date": "2026-07-30",
+  "runs": [
+    {
+      "kind": "retrieval",
+      "generated_at": "2026-07-30T16:00:00+00:00",
+      "scope": "fixture-eval",
+      "shortlist_backend": "fixture",
+      "k": 1,
+      "question_count": 2,
+      "metrics": {
+        "recall_at_k": 0.5,
+        "citation_precision": 0.5,
+        "unsupported_statement_rate": 0.0
+      },
+      "questions": [
+        {
+          "question": "What threshold is reported for the surface code?",
+          "gold_section_paths": [
+            "Results/Threshold"
+          ],
+          "retrieved_section_paths": [
+            "Results/Threshold"
+          ],
+          "cited_section_paths": [
+            "Results/Threshold"
+          ],
+          "gold_sections_retrieved": 1,
+          "gold_sections_total": 1,
+          "gold_citations": 1,
+          "citations_total": 1,
+          "unsupported_statements": 0,
+          "statements_total": 1
+        },
+        {
+          "question": "Which decoder is used for error correction?",
+          "gold_section_paths": [
+            "Methods/Decoder"
+          ],
+          "retrieved_section_paths": [
+            "Results/Threshold"
+          ],
+          "cited_section_paths": [
+            "Results/Threshold"
+          ],
+          "gold_sections_retrieved": 0,
+          "gold_sections_total": 1,
+          "gold_citations": 0,
+          "citations_total": 1,
+          "unsupported_statements": 0,
+          "statements_total": 1
+        }
+      ]
+    },
+    {
+      "kind": "extraction",
+      "generated_at": "2026-07-30T16:00:00+00:00",
+      "scope": "fixture-eval",
+      "claim_count": 3,
+      "extracted_count": 3,
+      "metrics": {
+        "claim_precision": 0.6666666666666666,
+        "claim_recall": 0.6666666666666666,
+        "claim_f1": 0.6666666666666666,
+        "evidence_span_precision": 0.25,
+        "stance_accuracy": 0.6666666666666666
+      }
+    }
+  ]
+}
+AC3_PASS: both retrieval and extraction in docs/super-board/runs/issue-50-qa-v1/ac3-shared-report/eval-2026-07-30.json
