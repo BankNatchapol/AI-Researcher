@@ -1,0 +1,22 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-65-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-65-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 11 items
+
+tests/test_subscriptions.py::test_subscribe_topic_creates_active_subscription PASSED [  9%]
+tests/test_subscriptions.py::test_subscribe_claim_creates_active_subscription PASSED [ 18%]
+tests/test_subscriptions.py::test_subscribe_claim_rejects_unknown_id_with_named_error PASSED [ 27%]
+tests/test_subscriptions.py::test_subscribe_claim_targets_canonical_claim PASSED [ 36%]
+tests/test_subscriptions.py::test_duplicate_topic_subscription_is_rejected PASSED [ 45%]
+tests/test_subscriptions.py::test_duplicate_claim_subscription_is_rejected PASSED [ 54%]
+tests/test_subscriptions.py::test_subscribe_topic_rejects_unknown_scope PASSED [ 63%]
+tests/test_subscriptions.py::test_list_subscriptions_includes_kind_target_and_active PASSED [ 72%]
+tests/test_subscriptions.py::test_unsubscribe_deactivates_without_deleting PASSED [ 81%]
+tests/test_subscriptions.py::test_cli_subscribe_topic_subscriptions_and_unsubscribe PASSED [ 90%]
+tests/test_subscriptions.py::test_cli_subscribe_claim_rejects_unknown_id PASSED [100%]
+
+============================== 11 passed in 4.50s ==============================
+EXIT_FOCUSED=
