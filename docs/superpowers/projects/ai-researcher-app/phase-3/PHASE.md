@@ -94,8 +94,8 @@ pass per section group, validate every record against the schema, reject anythin
 `evidence_quality` answers *"how good is the underlying science?"* Inputs, from the rubric:
 - full text versus abstract-only (`parse_status`)
 - peer-reviewed versus preprint (`is_preprint`, `venue`)
-- direct statement versus inferred
-- backed by a table or figure caption versus narrative only
+- direct statement versus inferred (`claim_evidence.is_direct`, set by the batched stance
+  call in evidence linking)
 - recency (`published_at`)
 - replication — count of independent papers with a supporting claim
 
@@ -115,7 +115,8 @@ one `claim_evidence` row per source paper — never a silent overwrite.
 2. Migrations add `method`, `result`, `dataset`, and `metric` tables, each with `paper_id`
    and a non-null `tree_node_id`.
 3. A migration adds `claim_evidence(id, claim_id, tree_node_id, paper_id, stance,
-   rationale_text, created_at)` where `stance` is one of `supports`, `refutes`, `mentions`.
+   rationale_text, is_direct, created_at)` where `stance` is one of `supports`, `refutes`,
+   `mentions`, and `is_direct` is a non-null boolean set by the same batched stance call.
 4. A migration adds `claim_score(id, claim_id, confidence, evidence_quality, rubric_version,
    scored_at)` with `confidence` and `evidence_quality` as separate non-null columns.
 5. Every extracted record has a non-null `tree_node_id`; records failing this are rejected
@@ -133,7 +134,8 @@ one `claim_evidence` row per source paper — never a silent overwrite.
 11. Evidence linking finds supporting and refuting nodes for a claim using Phase 2 traversal,
     including nodes in papers other than the claim's origin paper.
 12. Every `claim_evidence` row records a `rationale_text` quoted from the node body, not
-    paraphrased, so the link is auditable.
+    paraphrased, so the link is auditable, and an `is_direct` boolean classified in the same
+    batched call, consumed later by the evidence-quality rubric (task 07).
 13. Claim identity merges duplicates into a canonical claim via `canonical_claim_id`, keeping
     every original row and one `claim_evidence` row per contributing paper.
 14. The dedup prefilter is non-LLM (matching metric and overlapping numeric range); the LLM
@@ -142,8 +144,12 @@ one `claim_evidence` row per source paper — never a silent overwrite.
     records which inputs contributed.
 16. `scoring/quality.py` computes a 0–100 score strictly from `scoring/rubric.md`, and the
     rubric file is versioned with `rubric_version` stored on every `claim_score` row.
-17. No code path combines `confidence` and `evidence_quality`. A test greps the package for
-    arithmetic on both and fails if found.
+17. No code path combines `confidence` and `evidence_quality`. A static AST lint flags common
+    accidental-combination patterns as defense-in-depth (best-effort, not exhaustive — static
+    analysis of this property over a dynamic language cannot be complete). The actual
+    guarantee is behavioral: a test proves the one code path holding both values in the same
+    scope (`score_scope_confidence`) persists them to storage unmodified and independently
+    computed.
 18. Community, social, or attention data is not an input to either score. A test asserts the
     `scoring` package imports nothing from a discourse module.
 19. Abstract-only papers are scored, not skipped, and the rubric penalizes them explicitly.

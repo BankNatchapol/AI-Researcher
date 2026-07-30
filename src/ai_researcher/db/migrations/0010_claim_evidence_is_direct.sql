@@ -1,0 +1,5 @@
+ALTER TABLE claim_evidence
+    ADD COLUMN is_direct BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE claim_evidence
+    ALTER COLUMN is_direct DROP DEFAULT;

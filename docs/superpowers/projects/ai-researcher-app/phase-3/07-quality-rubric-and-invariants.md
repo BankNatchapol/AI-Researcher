@@ -21,8 +21,8 @@ mechanically prevented from ever merging the two scores.
 - [ ] `score_quality(claim) -> QualityScore` computes a 0–100 value strictly from the factors documented in `src/ai_researcher/scoring/rubric.md`
 - [ ] `rubric_version` is stored on every `claim_score` row and changes when the rubric file changes
 - [ ] An abstract-only paper's claim scores measurably lower than an otherwise identical full-text claim, asserted by a test
-- [ ] `uv run pytest tests/test_score_separation.py` exits 0, failing the build if any module performs arithmetic combining `confidence` and `evidence_quality`, and if `scoring/` imports any discourse module
-- [ ] `uv run pytest tests/test_quality.py` exits 0, covering each rubric factor in isolation: full-text versus abstract-only, peer-reviewed versus preprint, direct versus inferred, table/figure-backed versus narrative, recency, and replication count
+- [ ] `uv run pytest tests/test_score_separation.py` exits 0: a static AST lint catches common accidental-combination patterns as defense-in-depth (best-effort, not exhaustive — see Implementation notes), `scoring/` imports no discourse module, and a behavioral test in `tests/test_confidence.py` proves the one real code path holding both scores (`score_scope_confidence`) persists them unmodified and independently computed
+- [ ] `uv run pytest tests/test_quality.py` exits 0, covering each rubric factor in isolation: full-text versus abstract-only, peer-reviewed versus preprint, direct versus inferred, recency, and replication count
 
 ## Implementation notes
 
@@ -39,13 +39,38 @@ mechanically prevented from ever merging the two scores.
 **Rubric factors (all sourced from real columns, none invented):**
 - full text versus abstract-only — `parse_status`
 - peer-reviewed versus preprint — `is_preprint`, `venue`
-- direct statement versus inferred — set during extraction
-- table/figure-backed versus narrative-only — set during extraction
+- direct statement versus inferred — `claim_evidence.is_direct`, set by the batched stance
+  call in evidence linking (task 04); the quality scorer only reads the stored flag
 - recency — `published_at`
 - replication — count of distinct papers with supporting evidence for the canonical claim
 
+**Dropped from v1:** table/figure-backed versus narrative-only. GROBID's TEI parsing (Phase 1)
+does not preserve any figure/table distinction, so there is no real signal to score this
+factor against — figure and table grounding is explicitly out of scope for v1 (`AGENTS.md`).
+Storing a column with no real signal behind it would misrepresent itself as evidence-quality
+data. See `src/ai_researcher/scoring/rubric.md`'s "Out of scope for v1" section.
+
 **Why the separation test is a build gate:** PROJECT.md makes the two-score split a hard
-invariant. A convention would erode; an AST-level test that fails CI cannot.
+invariant. A convention would erode; a test that fails CI cannot.
+
+**On the AST lint's scope (added after issue #48's rebuild history):** the original spec for
+this task asked for a test that fails the build "if any module performs arithmetic combining
+`confidence` and `evidence_quality`" — read as a completeness requirement, that goal is
+unbounded. Static analysis of a semantic property (does this code ever combine these two
+values, however written) over a dynamic language cannot be exhaustive: eight rebuild rounds on
+issue #48 each found a new syntactic form (aliasing, closures, dunder calls, operator-module
+callables, augmented assignment, mapping/`getattr` access) the AST walker didn't yet recognize,
+and there is always another one (`eval`, `functools.reduce`, reflection, ...). Every one of
+those eight rounds was a new adversarial *test fixture* proving the checker's own coverage —
+none were bugs found in production scoring code, which has never combined the two values.
+The AST lint (`test_no_module_performs_arithmetic_combining_the_two_scores`) stays as
+cheap, best-effort defense-in-depth against accidental mistakes in new code. The actual,
+complete guarantee is behavioral: `score_scope_confidence` (`scoring/confidence.py`) is the
+only place in the codebase that ever holds both values in the same scope, and
+`tests/test_confidence.py::test_score_scope_persists_independently_computed_quality_with_confidence`
+plus `::test_postgres_store_persists_both_scores_without_combining_them` prove it passes them
+to storage unmodified and independently computed — a guarantee about what the values actually
+do, immune to new syntax tricks by construction.
 
 ## Out of scope
 

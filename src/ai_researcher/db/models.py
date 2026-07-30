@@ -514,6 +514,7 @@ claim_evidence = Table(
     ),
     Column("stance", Text, nullable=False),
     Column("rationale_text", Text, nullable=False),
+    Column("is_direct", Boolean, nullable=False),
     Column(
         "created_at",
         DateTime(timezone=True),

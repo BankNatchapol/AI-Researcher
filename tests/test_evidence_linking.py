@@ -106,6 +106,7 @@ def test_link_evidence_assigns_all_stances_and_keeps_cross_paper_nodes() -> None
                     "node_id": 11,
                     "stance": "supports",
                     "rationale": "The method lowers the logical error rate by 20 percent.",
+                    "is_direct": True,
                 },
                 {
                     "node_id": 22,
@@ -113,11 +114,13 @@ def test_link_evidence_assigns_all_stances_and_keeps_cross_paper_nodes() -> None
                     "rationale": (
                         "Our measurements show the method does not lower the logical error rate."
                     ),
+                    "is_direct": True,
                 },
                 {
                     "node_id": 33,
                     "stance": "mentions",
                     "rationale": ("The method and logical error rate are discussed in Appendix B."),
+                    "is_direct": False,
                 },
             ]
         }
@@ -141,6 +144,7 @@ def test_link_evidence_assigns_all_stances_and_keeps_cross_paper_nodes() -> None
         (22, 202, "refutes"),
         (33, 202, "mentions"),
     ]
+    assert [link.is_direct for link in links] == [True, True, False]
     assert any(link.paper_id != claim["paper_id"] for link in links)
     assert store.saved == links
 
@@ -172,11 +176,13 @@ def test_link_evidence_rejects_non_verbatim_rationale_before_persistence() -> No
                     "node_id": 11,
                     "stance": "supports",
                     "rationale": "The decoder improves accuracy by five percent.",
+                    "is_direct": True,
                 },
                 {
                     "node_id": 22,
                     "stance": "refutes",
                     "rationale": "A separate study found the decoder ineffective.",
+                    "is_direct": False,
                 },
             ]
         }
@@ -223,6 +229,7 @@ def test_link_evidence_rejects_incomplete_batch_without_persistence() -> None:
                     "node_id": 11,
                     "stance": "supports",
                     "rationale": "The decoder improves accuracy by five percent.",
+                    "is_direct": True,
                 }
             ]
         }
@@ -284,6 +291,7 @@ def test_link_evidence_batches_every_candidate_in_one_stance_call() -> None:
                     "node_id": candidate["node_id"],
                     "stance": "mentions",
                     "rationale": candidate["body_text"],
+                    "is_direct": False,
                 }
                 for candidate in payload["candidate_nodes"]
             ]

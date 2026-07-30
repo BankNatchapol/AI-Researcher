@@ -77,6 +77,7 @@ CLAIM_EVIDENCE_COLUMNS = {
     "paper_id",
     "stance",
     "rationale_text",
+    "is_direct",
     "created_at",
 }
 CLAIM_SCORE_COLUMNS = {
@@ -310,6 +311,7 @@ def test_extraction_migration_rejects_null_tree_node_and_invalid_stance(
                     paper_id=paper_id,
                     stance="agrees",
                     rationale_text="quoted rationale",
+                    is_direct=True,
                 )
             )
 
@@ -320,6 +322,7 @@ def test_extraction_migration_rejects_null_tree_node_and_invalid_stance(
                 paper_id=paper_id,
                 stance="supports",
                 rationale_text="quoted rationale",
+                is_direct=True,
             )
         )
         connection.execute(
