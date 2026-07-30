@@ -1,0 +1,32 @@
+--- first migrate ---
+exit: 0
+Applied migration 0001_initial.
+Applied migration 0002_paper_parse_error.
+Applied migration 0003_trees.
+Applied migration 0004_fts_index.
+Applied migration 0005_extraction.
+Applied migration 0006_extraction_state.
+Applied migration 0007_claim_identity_state.
+Applied migration 0008_confidence_validation_counts.
+Applied migration 0009_claim_extraction_observations.
+Applied migration 0010_claim_evidence_is_direct.
+Applied migration 0011_discourse.
+
+--- second migrate ---
+exit: 0
+Database already up to date.
+
+--- AC2 columns ---
+discourse_source: ['enabled', 'id', 'kind', 'last_polled_at', 'name']
+discourse_item: ['author', 'external_id', 'id', 'num_comments', 'posted_at', 'retrieved_at', 'score', 'source_id', 'title', 'url']
+discourse_mention: ['created_at', 'discourse_item_id', 'id', 'paper_id', 'resolved_by']
+subscription: ['active', 'claim_id', 'created_at', 'id', 'kind', 'scope_id']
+sweep_run: ['error', 'finished_at', 'id', 'items_found', 'kind', 'started_at', 'state']
+--- FKs ---
+('discourse_item', 'discourse_source')
+('discourse_mention', 'discourse_item')
+('discourse_mention', 'paper')
+('subscription', 'scope')
+('subscription', 'claim')
+AC5 claim_score FK check: PASS (none)
+DONE
