@@ -193,6 +193,49 @@ EXPECTED_COLUMNS = {
         "validation_rejected",
         "completed_at",
     },
+    "discourse_source": {
+        "id",
+        "name",
+        "kind",
+        "enabled",
+        "last_polled_at",
+    },
+    "discourse_item": {
+        "id",
+        "source_id",
+        "external_id",
+        "url",
+        "title",
+        "author",
+        "posted_at",
+        "score",
+        "num_comments",
+        "retrieved_at",
+    },
+    "discourse_mention": {
+        "id",
+        "discourse_item_id",
+        "paper_id",
+        "resolved_by",
+        "created_at",
+    },
+    "subscription": {
+        "id",
+        "kind",
+        "scope_id",
+        "claim_id",
+        "created_at",
+        "active",
+    },
+    "sweep_run": {
+        "id",
+        "kind",
+        "started_at",
+        "finished_at",
+        "state",
+        "items_found",
+        "error",
+    },
 }
 
 
@@ -277,6 +320,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert "Applied migration 0008_confidence_validation_counts" in first_run.output
     assert "Applied migration 0009_claim_extraction_observations" in first_run.output
     assert "Applied migration 0010_claim_evidence_is_direct" in first_run.output
+    assert "Applied migration 0011_discourse" in first_run.output
     assert second_run.exit_code == 0, second_run.output
     assert "already up to date" in second_run.output
 
@@ -305,7 +349,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
         actual_columns.setdefault(table_name, set()).add(column_name)
     for table_name, expected in EXPECTED_COLUMNS.items():
         assert actual_columns[table_name] == expected
-    assert len(applied) == 10
+    assert len(applied) == 11
     assert applied[0][0:2] == (1, "0001_initial")
     assert applied[1][0:2] == (2, "0002_paper_parse_error")
     assert applied[2][0:2] == (3, "0003_trees")
@@ -316,6 +360,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert applied[7][0:2] == (8, "0008_confidence_validation_counts")
     assert applied[8][0:2] == (9, "0009_claim_extraction_observations")
     assert applied[9][0:2] == (10, "0010_claim_evidence_is_direct")
+    assert applied[10][0:2] == (11, "0011_discourse")
     assert applied[0][2] is not None
     assert applied[1][2] is not None
     assert applied[2][2] is not None
@@ -326,6 +371,7 @@ def test_cli_applies_all_migrations_and_is_idempotent(
     assert applied[7][2] is not None
     assert applied[8][2] is not None
     assert applied[9][2] is not None
+    assert applied[10][2] is not None
 
 
 @pytest.mark.parametrize("identifier", ["doi", "arxiv_id"])
