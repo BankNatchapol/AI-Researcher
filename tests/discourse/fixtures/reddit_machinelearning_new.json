@@ -1,0 +1,24 @@
+{
+  "kind": "Listing",
+  "data": {
+    "after": null,
+    "children": [
+      {
+        "kind": "t3",
+        "data": {
+          "id": "ml456",
+          "name": "t3_ml456",
+          "title": "Transformer paper thread",
+          "author": "ml_reader",
+          "permalink": "/r/MachineLearning/comments/ml456/transformer_paper_thread/",
+          "url": "https://arxiv.org/abs/1706.03762",
+          "selftext": "Attention is all you need",
+          "score": 120,
+          "num_comments": 33,
+          "created_utc": 1720001000.0,
+          "subreddit": "MachineLearning"
+        }
+      }
+    ]
+  }
+}
