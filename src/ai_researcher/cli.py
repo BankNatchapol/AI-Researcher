@@ -7,8 +7,10 @@ import typer
 app = typer.Typer(help="Research quantum computing and AI literature locally.")
 db_app = typer.Typer(help="Manage the local PostgreSQL database.")
 scope_app = typer.Typer(help="Create and inspect reproducible research scopes.")
+subscribe_app = typer.Typer(help="Subscribe to a topic scope or an individual claim.")
 app.add_typer(db_app, name="db")
 app.add_typer(scope_app, name="scope")
+app.add_typer(subscribe_app, name="subscribe")
 
 
 @app.callback()
@@ -414,6 +416,84 @@ def corpus_status(
             typer.echo("  Failed papers:")
             for failed in item.failed_papers:
                 typer.echo(f"    - {failed.title}: {failed.error}")
+
+
+@subscribe_app.command("topic")
+def subscribe_topic_command(
+    scope: str = typer.Argument(..., metavar="SCOPE", help="Saved scope name to track."),
+) -> None:
+    """Create an active topic subscription for a scope."""
+
+    from ai_researcher.monitor.subscription import (
+        DuplicateSubscriptionError,
+        UnknownScopeError,
+        subscribe_topic,
+    )
+
+    try:
+        record = subscribe_topic(scope)
+    except (UnknownScopeError, DuplicateSubscriptionError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"Subscribed #{record.id}: kind=topic target={record.target} active={record.active}")
+
+
+@subscribe_app.command("claim")
+def subscribe_claim_command(
+    claim_id: int = typer.Argument(..., metavar="CLAIM-ID", help="Claim id to track."),
+) -> None:
+    """Create an active claim subscription for a canonical claim."""
+
+    from ai_researcher.monitor.subscription import (
+        DuplicateSubscriptionError,
+        UnknownClaimError,
+        subscribe_claim,
+    )
+
+    try:
+        record = subscribe_claim(claim_id)
+    except (UnknownClaimError, DuplicateSubscriptionError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"Subscribed #{record.id}: kind=claim target={record.target} active={record.active}")
+
+
+@app.command("subscriptions")
+def list_subscriptions_command() -> None:
+    """List all subscriptions with kind, target, and active state."""
+
+    from ai_researcher.monitor.subscription import list_subscriptions
+
+    records = list_subscriptions()
+    if not records:
+        typer.echo("No subscriptions.")
+        return
+    typer.echo("id\tkind\ttarget\tactive")
+    for record in records:
+        typer.echo(f"{record.id}\t{record.kind}\t{record.target}\t{record.active}")
+
+
+@app.command("unsubscribe")
+def unsubscribe_command(
+    subscription_id: int = typer.Argument(
+        ...,
+        metavar="ID",
+        help="Subscription id to deactivate (row is kept).",
+    ),
+) -> None:
+    """Deactivate a subscription without deleting its history."""
+
+    from ai_researcher.monitor.subscription import (
+        UnknownSubscriptionError,
+        unsubscribe,
+    )
+
+    try:
+        record = unsubscribe(subscription_id)
+    except UnknownSubscriptionError as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(
+        f"Unsubscribed #{record.id}: kind={record.kind} target={record.target} "
+        f"active={record.active}"
+    )
 
 
 def _parse_date(value: str | None, option_name: str) -> date | None:
