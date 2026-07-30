@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-49-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-49-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 9 items
+
+tests/test_claims_surface.py::test_render_claims_table_uses_separate_score_columns PASSED [ 11%]
+tests/test_claims_surface.py::test_render_claim_detail_shows_factors_and_evidence_without_blending PASSED [ 22%]
+tests/test_claims_surface.py::test_list_claims_filters_min_quality_independently_of_confidence PASSED [ 33%]
+tests/test_claims_surface.py::test_list_claims_filters_type_and_min_confidence PASSED [ 44%]
+tests/test_claims_surface.py::test_claims_cli_lists_separate_score_columns PASSED [ 55%]
+tests/test_claims_surface.py::test_claims_cli_min_quality_filter_passed_through PASSED [ 66%]
+tests/test_claims_surface.py::test_claim_show_cli_prints_factors_and_evidence PASSED [ 77%]
+tests/test_claims_surface.py::test_mcp_claim_tools_keep_scores_as_distinct_top_level_fields PASSED [ 88%]
+tests/test_claims_surface.py::test_find_claim_evidence_and_get_claim_return_detail_objects PASSED [100%]
+
+============================== 9 passed in 0.29s ===============================
