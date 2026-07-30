@@ -144,8 +144,12 @@ one `claim_evidence` row per source paper — never a silent overwrite.
     records which inputs contributed.
 16. `scoring/quality.py` computes a 0–100 score strictly from `scoring/rubric.md`, and the
     rubric file is versioned with `rubric_version` stored on every `claim_score` row.
-17. No code path combines `confidence` and `evidence_quality`. A test greps the package for
-    arithmetic on both and fails if found.
+17. No code path combines `confidence` and `evidence_quality`. A static AST lint flags common
+    accidental-combination patterns as defense-in-depth (best-effort, not exhaustive — static
+    analysis of this property over a dynamic language cannot be complete). The actual
+    guarantee is behavioral: a test proves the one code path holding both values in the same
+    scope (`score_scope_confidence`) persists them to storage unmodified and independently
+    computed.
 18. Community, social, or attention data is not an input to either score. A test asserts the
     `scoring` package imports nothing from a discourse module.
 19. Abstract-only papers are scored, not skipped, and the rubric penalizes them explicitly.

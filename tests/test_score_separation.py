@@ -66,6 +66,9 @@ ARITHMETIC_CALLS = {
 }
 
 
+_STRING_ACCESSOR_CALLS = {"get", "getattr"}
+
+
 def _score_fields(node: ast.AST) -> set[str]:
     fields: set[str] = set()
     for descendant in ast.walk(node):
@@ -81,6 +84,16 @@ def _score_fields(node: ast.AST) -> set[str]:
             fields.add(descendant.slice.value)
         elif isinstance(descendant, ast.keyword) and descendant.arg:
             fields.add(descendant.arg)
+        elif (
+            isinstance(descendant, ast.Call)
+            and _callable_name(descendant.func) in _STRING_ACCESSOR_CALLS
+        ):
+            # `row.get("confidence")` / `getattr(row, "confidence")` — the field
+            # name is a positional string-literal argument, not an attribute or
+            # keyword, so neither branch above sees it.
+            for arg in descendant.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    fields.add(arg.value)
     return fields
 
 
@@ -242,6 +255,27 @@ def _default_arithmetic_aliases(
 
 
 def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
+    """Best-effort static lint for accidental combination — not a completeness proof.
+
+    Catching every conceivable Python spelling of "combine these two named
+    values" via source-text pattern matching is unbounded: aliasing, closures,
+    dunder calls, operator-module callables, mapping/getattr access, and this
+    list keeps growing with `eval`, `functools.reduce`, reflection, and so on.
+    Static analysis of a semantic property in a dynamic language cannot be
+    exhaustive (this is what kept issue #48 rebuilding — each round found a
+    new syntactic form and none of them are the last one).
+
+    This test stays as defense-in-depth: it catches common accidental
+    mistakes in new code early and cheaply. The actual, complete guarantee
+    that confidence and evidence_quality are never combined comes from
+    `tests/test_confidence.py::test_score_scope_persists_independently_computed_quality_with_confidence`
+    and `::test_postgres_store_persists_both_scores_without_combining_them` —
+    behavioral tests against the one real production code path
+    (`score_scope_confidence`) that ever holds both values in the same scope,
+    proving it passes them through to storage unmodified and independently
+    computed. Those tests test what the values actually do, not how the
+    source code is spelled, so they can't be defeated by a new syntax trick.
+    """
     violations: list[str] = []
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -436,6 +470,29 @@ def test_score_arithmetic_gate_detects_mapping_get_access(
             (
                 "def blend(row):",
                 '    return row.get("confidence") + row.get("evidence_quality")',
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        test_no_module_performs_arithmetic_combining_the_two_scores.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="score arithmetic combines"):
+        test_no_module_performs_arithmetic_combining_the_two_scores()
+
+
+def test_score_arithmetic_gate_detects_getattr_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "violation.py").write_text(
+        "\n".join(
+            (
+                "def blend(row):",
+                '    return getattr(row, "confidence") + getattr(row, "evidence_quality")',
             )
         ),
         encoding="utf-8",
