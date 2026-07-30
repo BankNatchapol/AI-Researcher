@@ -10,7 +10,7 @@ from time import monotonic, sleep
 from urllib.parse import urlencode
 
 from ai_researcher.config import get_settings
-from ai_researcher.discourse.base import DiscourseItem
+from ai_researcher.discourse.base import DiscourseItem, DiscourseLinkMixin
 from ai_researcher.logging import get_logger
 from ai_researcher.sources._http import (
     PostRequester,
@@ -19,14 +19,13 @@ from ai_researcher.sources._http import (
     request_bytes,
     request_post,
 )
-from ai_researcher.sources.base import PaperRef
 
 _TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 _OAUTH_BASE = "https://oauth.reddit.com"
 _logger = get_logger(__name__)
 
 
-class RedditSource:
+class RedditSource(DiscourseLinkMixin):
     """Poll configured subreddits via Reddit's official OAuth API."""
 
     name = "reddit"
@@ -69,12 +68,6 @@ class RedditSource:
             )
             items.extend(self._items_from_listing(payload, since_utc))
         return items
-
-    def link_targets(self, item: DiscourseItem) -> list[PaperRef]:
-        """Paper linking is shared logic landed in a later task."""
-
-        del item
-        return []
 
     def _access_token(self, client_id: str, client_secret: str) -> str:
         basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()

@@ -1,0 +1,21 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-64-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-64-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 11 items
+
+tests/discourse/test_link_resolution.py::test_extract_identifiers_from_arxiv_abs_url PASSED [  9%]
+tests/discourse/test_link_resolution.py::test_extract_identifiers_from_arxiv_pdf_url PASSED [ 18%]
+tests/discourse/test_link_resolution.py::test_extract_identifiers_bare_arxiv_id_in_body PASSED [ 27%]
+tests/discourse/test_link_resolution.py::test_extract_identifiers_from_doi_url PASSED [ 36%]
+tests/discourse/test_link_resolution.py::test_link_targets_reads_url_and_body PASSED [ 45%]
+tests/discourse/test_link_resolution.py::test_adapters_inherit_shared_link_targets PASSED [ 54%]
+tests/discourse/test_link_resolution.py::test_resolved_item_writes_mention_with_resolved_by PASSED [ 63%]
+tests/discourse/test_link_resolution.py::test_resolved_doi_writes_mention PASSED [ 72%]
+tests/discourse/test_link_resolution.py::test_no_reference_item_stored_without_mentions PASSED [ 81%]
+tests/discourse/test_link_resolution.py::test_unknown_paper_logs_and_writes_no_mention PASSED [ 90%]
+tests/discourse/test_link_resolution.py::test_registered_adapters_delegate_to_shared_link_targets PASSED [100%]
+
+============================== 11 passed in 0.47s ==============================

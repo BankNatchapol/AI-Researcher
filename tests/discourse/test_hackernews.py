@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from ai_researcher.discourse import registry
 from ai_researcher.discourse.base import DiscourseItem, DiscourseSource
 from ai_researcher.discourse.hackernews import HackerNewsSource
+from ai_researcher.sources.base import PaperRef
 
 from .conftest import MappingRequester
 
@@ -64,16 +65,13 @@ def test_user_agent_identifies_tool_and_configured_contact() -> None:
     assert "researcher@example.com" in user_agent
 
 
-def test_link_targets_is_stubbed_empty_until_shared_resolver() -> None:
+def test_link_targets_uses_shared_resolver() -> None:
     source = HackerNewsSource(requester=_hn_requester())
-    assert (
-        source.link_targets(
-            DiscourseItem(
-                source="hackernews",
-                external_id="40100001",
-                url="https://news.ycombinator.com/item?id=40100001",
-                body="https://arxiv.org/abs/2402.05555",
-            )
+    assert source.link_targets(
+        DiscourseItem(
+            source="hackernews",
+            external_id="40100001",
+            url="https://news.ycombinator.com/item?id=40100001",
+            body="https://arxiv.org/abs/2402.05555",
         )
-        == []
-    )
+    ) == [PaperRef(source="arxiv", external_id="2402.05555")]

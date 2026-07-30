@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from ai_researcher.discourse import registry
 from ai_researcher.discourse.base import DiscourseItem, DiscourseSource
 from ai_researcher.discourse.huggingface import HuggingFacePapersSource
+from ai_researcher.sources.base import PaperRef
 
 from .conftest import MappingRequester
 
@@ -53,16 +54,13 @@ def test_user_agent_identifies_tool_and_configured_contact() -> None:
     assert "researcher@example.com" in user_agent
 
 
-def test_link_targets_is_stubbed_empty_until_shared_resolver() -> None:
+def test_link_targets_uses_shared_resolver() -> None:
     source = HuggingFacePapersSource(requester=_hf_requester())
-    assert (
-        source.link_targets(
-            DiscourseItem(
-                source="huggingface",
-                external_id="2406.01234",
-                url="https://huggingface.co/papers/2406.01234",
-                body="2406.01234",
-            )
+    assert source.link_targets(
+        DiscourseItem(
+            source="huggingface",
+            external_id="2406.01234",
+            url="https://huggingface.co/papers/2406.01234",
+            body="2406.01234",
         )
-        == []
-    )
+    ) == [PaperRef(source="arxiv", external_id="2406.01234")]

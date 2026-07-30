@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-64-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-64-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 2 items
+
+tests/discourse/test_link_resolution.py::test_resolved_item_writes_mention_with_resolved_by PASSED [ 50%]
+tests/discourse/test_link_resolution.py::test_resolved_doi_writes_mention PASSED [100%]
+
+============================== 2 passed in 0.34s ===============================
