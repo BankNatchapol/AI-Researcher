@@ -1,0 +1,11 @@
+                                                                                
+ Usage: airesearch digest [OPTIONS]                                             
+                                                                                
+ Write a markdown digest of evidence and community attention since a date.      
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --since        <str>  Include changes after this date (YYYY-MM-DD).       │
+│                          [required]                                          │
+│    --help                Show this message and exit.                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+

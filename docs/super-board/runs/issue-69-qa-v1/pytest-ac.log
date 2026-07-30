@@ -1,0 +1,17 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-69-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-69-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 7 items
+
+tests/test_digest.py::test_render_has_exactly_two_top_level_sections PASSED [ 14%]
+tests/test_digest.py::test_evidence_section_contains_no_attention_figures PASSED [ 28%]
+tests/test_digest.py::test_score_movement_renders_separate_before_after_pairs PASSED [ 42%]
+tests/test_digest.py::test_community_items_link_to_original_post_not_body PASSED [ 57%]
+tests/test_digest.py::test_empty_window_produces_legible_nothing_changed_digest PASSED [ 71%]
+tests/test_digest.py::test_build_digest_from_injected_changeset PASSED   [ 85%]
+tests/test_digest.py::test_cli_digest_writes_file_and_stdout PASSED      [100%]
+
+============================== 7 passed in 0.19s ===============================

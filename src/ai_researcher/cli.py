@@ -522,6 +522,31 @@ def sweep_command(
         typer.echo(f"error: {result.error}", err=True)
 
 
+@app.command("digest")
+def digest_command(
+    since: str = typer.Option(
+        ...,
+        "--since",
+        help="Include changes after this date (YYYY-MM-DD).",
+    ),
+) -> None:
+    """Write a markdown digest of evidence and community attention since a date."""
+
+    from datetime import UTC, datetime
+
+    from ai_researcher.digest import write_digest
+
+    try:
+        since_day = _parse_date(since, "--since")
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    assert since_day is not None
+    since_dt = datetime(since_day.year, since_day.month, since_day.day, tzinfo=UTC)
+    markdown, _path = write_digest(since_dt)
+    # Print the same content written to docs/supersaiyan/runs/digest-<date>.md
+    typer.echo(markdown, nl=False)
+
+
 def _parse_date(value: str | None, option_name: str) -> date | None:
     if value is None:
         return None
