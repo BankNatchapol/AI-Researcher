@@ -1,0 +1,13 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-61-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-61-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 3 items
+
+tests/test_discourse_registry.py::test_register_and_get_returns_adapter PASSED [ 33%]
+tests/test_discourse_registry.py::test_unknown_discourse_source_raises_named_error PASSED [ 66%]
+tests/test_discourse_registry.py::test_discourse_source_protocol_requires_poll_and_link_targets PASSED [100%]
+
+============================== 3 passed in 0.01s ===============================
