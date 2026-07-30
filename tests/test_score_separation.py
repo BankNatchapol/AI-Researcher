@@ -427,6 +427,29 @@ def test_score_arithmetic_gate_detects_augmented_assignment(
         test_no_module_performs_arithmetic_combining_the_two_scores()
 
 
+def test_score_arithmetic_gate_detects_mapping_get_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "violation.py").write_text(
+        "\n".join(
+            (
+                "def blend(row):",
+                '    return row.get("confidence") + row.get("evidence_quality")',
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        test_no_module_performs_arithmetic_combining_the_two_scores.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="score arithmetic combines"):
+        test_no_module_performs_arithmetic_combining_the_two_scores()
+
+
 @pytest.mark.parametrize(
     "arithmetic_call",
     (
