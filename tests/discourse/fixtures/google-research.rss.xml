@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Google Research</title>
+  <entry>
+    <id>tag:blogger.com,1999:blog-8474926331452026626.post-111</id>
+    <title type="text">Scaling quantum error correction</title>
+    <published>2024-06-15T10:00:00Z</published>
+    <updated>2024-06-15T10:00:00Z</updated>
+    <author><name>Research Team</name></author>
+    <link rel="alternate" type="text/html" href="https://blog.research.google/2024/06/scaling-qec.html"/>
+    <summary type="text">A look at surface codes.</summary>
+  </entry>
+  <entry>
+    <id>tag:blogger.com,1999:blog-8474926331452026626.post-222</id>
+    <title type="text">Old post before since</title>
+    <published>2024-01-01T10:00:00Z</published>
+    <updated>2024-01-01T10:00:00Z</updated>
+    <author><name>Someone</name></author>
+    <link rel="alternate" type="text/html" href="https://blog.research.google/2024/01/old.html"/>
+  </entry>
+</feed>

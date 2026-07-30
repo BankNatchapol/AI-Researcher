@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-63-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-63-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 1 item
+
+tests/discourse/test_rss.py::test_malformed_or_unreachable_feed_is_logged_and_skipped PASSED [100%]
+
+============================== 1 passed in 0.01s ===============================

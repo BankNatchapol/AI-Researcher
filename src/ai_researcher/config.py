@@ -33,6 +33,7 @@ class Settings:
     reddit_client_id: str | None
     reddit_client_secret: str | None
     reddit_subreddits: tuple[str, ...]
+    discourse_rss_feeds: tuple[str, ...]
 
 
 def _required_environment_variable(name: str) -> str:
@@ -84,6 +85,19 @@ def _reddit_subreddits() -> tuple[str, ...]:
     return tuple(part.strip() for part in raw.split(",") if part.strip())
 
 
+_DEFAULT_DISCOURSE_RSS_FEEDS = (
+    "https://blog.research.google/feeds/posts/default?alt=rss",
+    "https://blog.research.google/feeds/posts/default/-/QuantumAI",
+)
+
+
+def _discourse_rss_feeds() -> tuple[str, ...]:
+    raw = os.environ.get("DISCOURSE_RSS_FEEDS")
+    if raw is None:
+        return _DEFAULT_DISCOURSE_RSS_FEEDS
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
 def _source_min_intervals() -> Mapping[str, float]:
     return MappingProxyType(
         {
@@ -110,6 +124,14 @@ def _source_min_intervals() -> Mapping[str, float]:
             "hackernews": _nonnegative_float_environment_variable(
                 "HACKERNEWS_MIN_INTERVAL_SECONDS",
                 default=0.5,
+            ),
+            "rss": _nonnegative_float_environment_variable(
+                "RSS_MIN_INTERVAL_SECONDS",
+                default=1.0,
+            ),
+            "huggingface": _nonnegative_float_environment_variable(
+                "HUGGINGFACE_MIN_INTERVAL_SECONDS",
+                default=1.0,
             ),
         }
     )
@@ -142,4 +164,5 @@ def get_settings() -> Settings:
         reddit_client_id=_optional_environment_variable("REDDIT_CLIENT_ID"),
         reddit_client_secret=_optional_environment_variable("REDDIT_CLIENT_SECRET"),
         reddit_subreddits=_reddit_subreddits(),
+        discourse_rss_feeds=_discourse_rss_feeds(),
     )

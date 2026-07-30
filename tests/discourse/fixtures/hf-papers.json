@@ -1,0 +1,28 @@
+[
+  {
+    "title": "Daily paper one",
+    "publishedAt": "2024-06-20T12:00:00.000Z",
+    "numComments": 3,
+    "submittedBy": {"name": "curator"},
+    "paper": {
+      "id": "2406.01234",
+      "title": "Attention Is Still All You Need",
+      "upvotes": 42,
+      "publishedAt": "2024-06-19T00:00:00.000Z",
+      "submittedOnDailyAt": "2024-06-20T08:00:00.000Z",
+      "summary": "A paper about attention."
+    }
+  },
+  {
+    "title": "Daily paper two",
+    "publishedAt": "2024-01-01T12:00:00.000Z",
+    "numComments": 0,
+    "paper": {
+      "id": "2401.00001",
+      "title": "Old daily paper",
+      "upvotes": 1,
+      "publishedAt": "2024-01-01T00:00:00.000Z",
+      "submittedOnDailyAt": "2024-01-01T08:00:00.000Z"
+    }
+  }
+]
