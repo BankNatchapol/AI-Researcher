@@ -80,3 +80,86 @@ questions:
     scope: transformers
     section_paths:
       - Results/Machine Translation
+claims:
+  - normalized_text: stabilizer operators define the surface code parity checks
+    scope: surface-codes
+    section_path: Surface codes/Stabilizer operators
+    stance: supports
+  - normalized_text: syndrome extraction detects data-qubit errors on the lattice
+    scope: surface-codes
+    section_path: Surface codes/Syndrome extraction
+    stance: supports
+  - normalized_text: logical x and z operators are non-trivial cycles on the lattice
+    scope: surface-codes
+    section_path: Surface codes/Logical operators
+    stance: supports
+  - normalized_text: surface code threshold is approximately 1 percent
+    scope: surface-codes
+    section_path: Error correction/Threshold estimates
+    stance: supports
+    object_value: 1.0
+    unit: "%"
+  - normalized_text: minimum-weight perfect matching decodes surface-code syndromes
+    scope: surface-codes
+    section_path: Error correction/Minimum-weight perfect matching
+    stance: supports
+  - normalized_text: stabilizer measurements must be repeated for fault tolerance
+    scope: surface-codes
+    section_path: Error correction/Fault-tolerant syndrome extraction
+    stance: supports
+  - normalized_text: logical qubits are initialized into stabilizer eigenstates
+    scope: surface-codes
+    section_path: Logical operations/Initialization
+    stance: supports
+  - normalized_text: logical measurement projects onto the logical operator eigenstates
+    scope: surface-codes
+    section_path: Logical operations/Measurement
+    stance: supports
+  - normalized_text: lattice-surgery merge and split implement a logical cnot
+    scope: surface-codes
+    section_path: Lattice surgery/Merge and split operations
+    stance: supports
+  - normalized_text: a logical surface-code qubit requires thousands of physical qubits
+    scope: surface-codes
+    section_path: Resource estimates/Physical qubit overhead
+    stance: mentions
+  - normalized_text: the transformer encoder and decoder are stacks of identical layers
+    scope: transformers
+    section_path: Model Architecture/Encoder and Decoder Stacks
+    stance: supports
+  - normalized_text: scaled dot-product attention divides queries by the square root of dk
+    scope: transformers
+    section_path: Model Architecture/Attention/Scaled Dot-Product Attention
+    stance: supports
+  - normalized_text: multi-head attention lets the model jointly attend to different subspaces
+    scope: transformers
+    section_path: Model Architecture/Attention/Multi-Head Attention
+    stance: supports
+  - normalized_text: a position-wise feed-forward network is applied after attention
+    scope: transformers
+    section_path: Model Architecture/Position-wise Feed-Forward Networks
+    stance: supports
+  - normalized_text: token embeddings are tied to the output softmax weights
+    scope: transformers
+    section_path: Model Architecture/Embeddings and Softmax
+    stance: supports
+  - normalized_text: positional encodings inject order information without recurrence
+    scope: transformers
+    section_path: Model Architecture/Positional Encoding
+    stance: supports
+  - normalized_text: self-attention has better long-range path length than recurrence
+    scope: transformers
+    section_path: Why Self-Attention
+    stance: supports
+  - normalized_text: adam with a warmup learning-rate schedule trains the transformer
+    scope: transformers
+    section_path: Training/Optimizer
+    stance: supports
+  - normalized_text: residual dropout and label smoothing regularize transformer training
+    scope: transformers
+    section_path: Training/Regularization
+    stance: supports
+  - normalized_text: the transformer reports new state-of-the-art machine translation bleu
+    scope: transformers
+    section_path: Results/Machine Translation
+    stance: supports

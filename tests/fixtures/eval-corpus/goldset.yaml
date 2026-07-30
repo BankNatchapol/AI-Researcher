@@ -8,3 +8,18 @@ questions:
     scope: fixture-eval
     section_paths:
       - Methods/Decoder
+claims:
+  - normalized_text: threshold is approximately 1 percent
+    scope: fixture-eval
+    section_path: Results/Threshold
+    stance: supports
+    object_value: 1.0
+    unit: "%"
+  - normalized_text: minimum-weight perfect matching is the decoder
+    scope: fixture-eval
+    section_path: Methods/Decoder
+    stance: supports
+  - normalized_text: lattice surgery has high overhead
+    scope: fixture-eval
+    section_path: Discussion/Limitations
+    stance: refutes

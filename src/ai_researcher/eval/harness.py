@@ -1,20 +1,31 @@
-"""Measure retrieval and citation quality against a hand-labelled gold set."""
+"""Measure retrieval and extraction quality against a hand-labelled gold set."""
 
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import Connection, select
+
 from ai_researcher.answer import Answer
+from ai_researcher.db import connect
+from ai_researcher.eval.extraction_metrics import (
+    ExtractedClaimObservation,
+    ExtractedEvidenceObservation,
+    ExtractionMetrics,
+    compute_extraction_metrics,
+)
 from ai_researcher.eval.goldset import (
     GoldQuestion,
     PostgresSectionCatalog,
     SectionCatalog,
+    load_gold_claims,
     load_goldset,
 )
 from ai_researcher.retrieval import TraversalResult
@@ -25,6 +36,7 @@ ATTRIBUTION_PATTERN = re.compile(r"\[(?:node|nodes) ([0-9]+(?:,\s*[0-9]+)*)\]\s*
 
 TraverseFn = Callable[[str, str], TraversalResult]
 SynthesizeFn = Callable[[str, TraversalResult], Answer]
+ConnectionFactory = Callable[[], AbstractContextManager[Connection]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +57,16 @@ class EvaluationResult:
     k: int
     question_count: int
     metrics: EvaluationMetrics
+    report_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractionEvaluationResult:
+    """One completed extraction evaluation run and its report location."""
+
+    scope: str
+    claim_count: int
+    metrics: ExtractionMetrics
     report_path: Path
 
 
@@ -110,17 +132,20 @@ def run_evaluation(
         for question in questions
     )
     metrics = _aggregate_metrics(scores)
-    generated_at = datetime.now(UTC) if now is None else now
-    if generated_at.tzinfo is None:
-        generated_at = generated_at.replace(tzinfo=UTC)
-    report_path = _append_report(
+    generated_at = _aware_now(now)
+    report_path = _append_run(
         report_dir=Path(report_dir),
         generated_at=generated_at,
-        scope=scope,
-        shortlist_backend=shortlist_backend,
-        k=k,
-        metrics=metrics,
-        scores=scores,
+        run={
+            "kind": "retrieval",
+            "generated_at": generated_at.isoformat(),
+            "scope": scope,
+            "shortlist_backend": shortlist_backend,
+            "k": k,
+            "question_count": len(scores),
+            "metrics": asdict(metrics),
+            "questions": [asdict(score) for score in scores],
+        },
     )
     return EvaluationResult(
         scope=scope,
@@ -129,6 +154,131 @@ def run_evaluation(
         question_count=len(scores),
         metrics=metrics,
         report_path=report_path,
+    )
+
+
+def run_extraction_evaluation(
+    scope: str,
+    *,
+    goldset_path: Path | str = DEFAULT_GOLDSET_PATH,
+    report_dir: Path | str = DEFAULT_REPORT_DIR,
+    section_catalog: SectionCatalog | None = None,
+    extracted_claims: Sequence[ExtractedClaimObservation] | None = None,
+    connection_factory: ConnectionFactory | None = None,
+    now: datetime | None = None,
+) -> ExtractionEvaluationResult:
+    """Evaluate extracted claims against gold labels and append to the dated report."""
+
+    if not scope.strip():
+        raise ValueError("scope must not be empty")
+
+    catalog = PostgresSectionCatalog() if section_catalog is None else section_catalog
+    gold_claims = load_gold_claims(
+        goldset_path,
+        scope=scope,
+        section_catalog=catalog,
+    )
+    observations = (
+        tuple(extracted_claims)
+        if extracted_claims is not None
+        else load_extracted_claims(scope, connection_factory=connection_factory)
+    )
+    metrics = compute_extraction_metrics(gold_claims, observations)
+    generated_at = _aware_now(now)
+    report_path = _append_run(
+        report_dir=Path(report_dir),
+        generated_at=generated_at,
+        run={
+            "kind": "extraction",
+            "generated_at": generated_at.isoformat(),
+            "scope": scope,
+            "claim_count": len(gold_claims),
+            "extracted_count": len(observations),
+            "metrics": asdict(metrics),
+        },
+    )
+    return ExtractionEvaluationResult(
+        scope=scope,
+        claim_count=len(gold_claims),
+        metrics=metrics,
+        report_path=report_path,
+    )
+
+
+def load_extracted_claims(
+    scope_name: str,
+    *,
+    connection_factory: ConnectionFactory | None = None,
+) -> tuple[ExtractedClaimObservation, ...]:
+    """Load extracted claims and evidence section paths for one scope from Postgres."""
+
+    from ai_researcher.db.models import claim as claim_table
+    from ai_researcher.db.models import claim_evidence as claim_evidence_table
+    from ai_researcher.db.models import paper_scope, tree_node
+    from ai_researcher.db.models import scope as scope_table
+
+    factory = connect if connection_factory is None else connection_factory
+    with factory() as connection:
+        claim_rows = (
+            connection.execute(
+                select(
+                    claim_table.c.id,
+                    claim_table.c.normalized_text,
+                    claim_table.c.object_value,
+                    claim_table.c.unit,
+                )
+                .select_from(claim_table)
+                .join(paper_scope, paper_scope.c.paper_id == claim_table.c.paper_id)
+                .join(scope_table, scope_table.c.id == paper_scope.c.scope_id)
+                .where(
+                    scope_table.c.name == scope_name,
+                    claim_table.c.canonical_claim_id.is_(None),
+                )
+                .order_by(claim_table.c.id)
+            )
+            .mappings()
+            .all()
+        )
+        if not claim_rows:
+            return ()
+
+        claim_ids = [int(row["id"]) for row in claim_rows]
+        evidence_rows = (
+            connection.execute(
+                select(
+                    claim_evidence_table.c.claim_id,
+                    claim_evidence_table.c.stance,
+                    tree_node.c.section_path,
+                )
+                .select_from(claim_evidence_table)
+                .join(tree_node, tree_node.c.id == claim_evidence_table.c.tree_node_id)
+                .where(claim_evidence_table.c.claim_id.in_(claim_ids))
+                .order_by(claim_evidence_table.c.id)
+            )
+            .mappings()
+            .all()
+        )
+
+    evidence_by_claim: dict[int, list[ExtractedEvidenceObservation]] = {
+        claim_id: [] for claim_id in claim_ids
+    }
+    for row in evidence_rows:
+        evidence_by_claim[int(row["claim_id"])].append(
+            ExtractedEvidenceObservation(
+                section_path=str(row["section_path"]),
+                stance=str(row["stance"]),
+            )
+        )
+
+    return tuple(
+        ExtractedClaimObservation(
+            id=int(row["id"]),
+            normalized_text=str(row["normalized_text"]),
+            object_value=None if row["object_value"] is None else float(row["object_value"]),
+            unit=None if row["unit"] is None else str(row["unit"]),
+            evidence=tuple(evidence_by_claim[int(row["id"])]),
+        )
+        for row in claim_rows
     )
 
 
@@ -195,15 +345,18 @@ def _ratio(numerator: int, denominator: int) -> float:
     return numerator / denominator if denominator else 0.0
 
 
-def _append_report(
+def _aware_now(now: datetime | None) -> datetime:
+    generated_at = datetime.now(UTC) if now is None else now
+    if generated_at.tzinfo is None:
+        return generated_at.replace(tzinfo=UTC)
+    return generated_at
+
+
+def _append_run(
     *,
     report_dir: Path,
     generated_at: datetime,
-    scope: str,
-    shortlist_backend: str,
-    k: int,
-    metrics: EvaluationMetrics,
-    scores: tuple[_QuestionScore, ...],
+    run: dict[str, Any],
 ) -> Path:
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"eval-{generated_at.date().isoformat()}.json"
@@ -216,17 +369,7 @@ def _append_report(
             "report_date": generated_at.date().isoformat(),
             "runs": [],
         }
-    report["runs"].append(
-        {
-            "generated_at": generated_at.isoformat(),
-            "scope": scope,
-            "shortlist_backend": shortlist_backend,
-            "k": k,
-            "question_count": len(scores),
-            "metrics": asdict(metrics),
-            "questions": [asdict(score) for score in scores],
-        }
-    )
+    report["runs"].append(run)
     temporary_path = report_path.with_suffix(".tmp")
     temporary_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
     temporary_path.replace(report_path)
@@ -238,5 +381,9 @@ __all__ = [
     "DEFAULT_REPORT_DIR",
     "EvaluationMetrics",
     "EvaluationResult",
+    "ExtractionEvaluationResult",
+    "ExtractionMetrics",
+    "load_extracted_claims",
     "run_evaluation",
+    "run_extraction_evaluation",
 ]
