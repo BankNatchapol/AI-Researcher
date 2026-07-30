@@ -105,3 +105,28 @@ def test_discourse_gate_detects_from_package_import(
 
     with pytest.raises(AssertionError, match="scoring imports discourse"):
         test_scoring_package_does_not_import_discourse()
+
+
+def test_score_arithmetic_gate_detects_aliased_score_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "violation.py").write_text(
+        "\n".join(
+            (
+                "def blend(row):",
+                "    pipeline = row.confidence",
+                "    science = row.evidence_quality",
+                "    return (pipeline + science) / 2",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        test_no_module_performs_arithmetic_combining_the_two_scores.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="score arithmetic combines"):
+        test_no_module_performs_arithmetic_combining_the_two_scores()

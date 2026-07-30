@@ -189,6 +189,24 @@ def test_mapping_input_is_supported_by_score_quality() -> None:
     assert score.value > 0
 
 
+def test_score_quality_consumes_the_persisted_claim_evidence_shape() -> None:
+    from ai_researcher.evidence.link import ClaimEvidence
+    from ai_researcher.scoring.quality import score_quality
+
+    persisted_evidence = ClaimEvidence(
+        claim_id=7,
+        tree_node_id=11,
+        paper_id=101,
+        stance="supports",
+        rationale_text="The measured result supports the claim directly.",
+        is_direct=True,
+    )
+
+    score = score_quality(_claim(evidence=(persisted_evidence,)))
+
+    assert _contributions(score)["directness"] == 17
+
+
 def test_rubric_version_changes_when_any_rubric_file_content_changes(tmp_path: Path) -> None:
     from ai_researcher.scoring.quality import RUBRIC_PATH, load_rubric
 
@@ -234,3 +252,27 @@ def test_persisted_claim_score_rows_carry_the_exact_rubric_version(tmp_path: Pat
     assert [row["rubric_version"] for row in inserted] == [score.rubric_version for score in scores]
     assert all(row["rubric_version"] != "pending-evidence-quality" for row in inserted)
     assert [row["evidence_quality"] for row in inserted] == [score.value for score in scores]
+
+
+def test_confidence_persistence_cannot_create_a_pending_rubric_version() -> None:
+    from ai_researcher.db.models import claim_score
+    from ai_researcher.scoring.confidence import PostgresConfidenceStore
+    from ai_researcher.scoring.quality import load_rubric
+
+    inserted: list[dict[str, Any]] = []
+
+    class RecordingConnection:
+        def execute(self, statement) -> None:
+            assert statement.table is claim_score
+            inserted.append(statement.compile().params)
+
+    @contextmanager
+    def connection_factory():
+        yield RecordingConnection()
+
+    PostgresConfidenceStore(connection_factory=connection_factory).save_confidence(
+        claim_id=7,
+        confidence=63,
+    )
+
+    assert inserted[0]["rubric_version"] == load_rubric().version
