@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-70-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-70-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 9 items
+
+tests/test_scheduler.py::test_sweep_hours_default_to_different_values PASSED [ 11%]
+tests/test_scheduler.py::test_sweep_hours_read_from_environment PASSED   [ 22%]
+tests/test_scheduler.py::test_build_scheduler_registers_daily_evidence_and_discourse_jobs PASSED [ 33%]
+tests/test_scheduler.py::test_next_run_times_reports_both_jobs PASSED    [ 44%]
+tests/test_scheduler.py::test_failing_job_is_logged_and_does_not_stop_scheduler PASSED [ 55%]
+tests/test_scheduler.py::test_cli_schedule_status_reports_next_run_times PASSED [ 66%]
+tests/test_scheduler.py::test_cli_schedule_start_registers_jobs_without_blocking PASSED [ 77%]
+tests/test_scheduler.py::test_env_example_documents_sweep_hours PASSED   [ 88%]
+tests/test_scheduler.py::test_scheduler_module_exports PASSED            [100%]
+
+============================== 9 passed in 0.11s ===============================

@@ -8,9 +8,11 @@ app = typer.Typer(help="Research quantum computing and AI literature locally.")
 db_app = typer.Typer(help="Manage the local PostgreSQL database.")
 scope_app = typer.Typer(help="Create and inspect reproducible research scopes.")
 subscribe_app = typer.Typer(help="Subscribe to a topic scope or an individual claim.")
+schedule_app = typer.Typer(help="Run and inspect the daily evidence and discourse scheduler.")
 app.add_typer(db_app, name="db")
 app.add_typer(scope_app, name="scope")
 app.add_typer(subscribe_app, name="subscribe")
+app.add_typer(schedule_app, name="schedule")
 
 
 @app.callback()
@@ -545,6 +547,30 @@ def digest_command(
     markdown, _path = write_digest(since_dt)
     # Print the same content written to docs/supersaiyan/runs/digest-<date>.md
     typer.echo(markdown, nl=False)
+
+
+@schedule_app.command("start")
+def schedule_start_command() -> None:
+    """Run APScheduler in the foreground with both daily sweeps registered."""
+
+    from ai_researcher.monitor.scheduler import start_scheduler
+
+    start_scheduler()
+
+
+@schedule_app.command("status")
+def schedule_status_command() -> None:
+    """Report the next run time for each scheduled sweep job."""
+
+    from ai_researcher.monitor.scheduler import (
+        JOB_DISCOURSE,
+        JOB_EVIDENCE,
+        next_run_times,
+    )
+
+    times = next_run_times()
+    typer.echo(f"evidence next_run={times[JOB_EVIDENCE].isoformat()}")
+    typer.echo(f"discourse next_run={times[JOB_DISCOURSE].isoformat()}")
 
 
 def _parse_date(value: str | None, option_name: str) -> date | None:

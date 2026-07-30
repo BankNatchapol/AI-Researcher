@@ -35,6 +35,8 @@ class Settings:
     reddit_subreddits: tuple[str, ...]
     discourse_rss_feeds: tuple[str, ...]
     score_movement_threshold: int
+    sweep_evidence_hour: int
+    sweep_discourse_hour: int
 
 
 def _required_environment_variable(name: str) -> str:
@@ -52,6 +54,17 @@ def _positive_integer_environment_variable(name: str, default: int) -> int:
         raise InvalidConfigurationError(f"{name} must be a positive integer") from error
     if value < 1:
         raise InvalidConfigurationError(f"{name} must be a positive integer")
+    return value
+
+
+def _hour_environment_variable(name: str, default: int) -> int:
+    raw_value = os.environ.get(name, str(default))
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise InvalidConfigurationError(f"{name} must be an hour in 0–23") from error
+    if value < 0 or value > 23:
+        raise InvalidConfigurationError(f"{name} must be an hour in 0–23")
     return value
 
 
@@ -170,4 +183,6 @@ def get_settings() -> Settings:
             "SCORE_MOVEMENT_THRESHOLD",
             default=10,
         ),
+        sweep_evidence_hour=_hour_environment_variable("SWEEP_EVIDENCE_HOUR", default=6),
+        sweep_discourse_hour=_hour_environment_variable("SWEEP_DISCOURSE_HOUR", default=7),
     )
