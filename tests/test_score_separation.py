@@ -387,6 +387,16 @@ def test_score_arithmetic_gate_detects_arithmetic_callables(
                 "    return combine(row.confidence, row.evidence_quality)",
             )
         ),
+        "\n".join(
+            (
+                "import operator",
+                "",
+                "def make_blender(combine=operator.add):",
+                "    def blend(row):",
+                "        return combine(row.confidence, row.evidence_quality)",
+                "    return blend",
+            )
+        ),
     ),
 )
 def test_score_arithmetic_gate_detects_aliased_arithmetic_callables(
