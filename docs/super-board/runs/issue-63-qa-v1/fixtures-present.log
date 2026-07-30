@@ -1,0 +1,4 @@
+-rw-r--r--@ 1 banknatchapol  staff  396 Jul 30 16:38 tests/discourse/fixtures/extra-blog.rss.xml
+-rw-r--r--@ 1 banknatchapol  staff  956 Jul 30 16:38 tests/discourse/fixtures/google-research.rss.xml
+-rw-r--r--@ 1 banknatchapol  staff  735 Jul 30 16:38 tests/discourse/fixtures/hf-papers.json
+-rw-r--r--@ 1 banknatchapol  staff   11 Jul 30 16:38 tests/discourse/fixtures/malformed.rss.xml

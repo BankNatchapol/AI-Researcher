@@ -1,0 +1,2 @@
+rss_blogs: name='rss_blogs' isinstance=True
+huggingface: name='huggingface' isinstance=True

@@ -1,0 +1,26 @@
+Using CPython 3.11.15
+Creating virtual environment at: .venv
+   Building ai-researcher @ file:///Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-63-qa
+      Built ai-researcher @ file:///Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-63-qa
+Installed 49 packages in 57ms
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-63-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-63-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 11 items
+
+tests/discourse/test_rss.py::test_rss_implements_discourse_source_and_is_registered PASSED [  9%]
+tests/discourse/test_rss.py::test_default_feeds_include_google_research_and_quantum_ai PASSED [ 18%]
+tests/discourse/test_rss.py::test_adding_feed_url_via_config_only_makes_it_pollable PASSED [ 27%]
+tests/discourse/test_rss.py::test_poll_parses_atom_and_filters_by_since PASSED [ 36%]
+tests/discourse/test_rss.py::test_malformed_or_unreachable_feed_is_logged_and_skipped PASSED [ 45%]
+tests/discourse/test_rss.py::test_user_agent_identifies_tool_and_configured_contact PASSED [ 54%]
+tests/discourse/test_rss.py::test_link_targets_is_stubbed_empty_until_shared_resolver PASSED [ 63%]
+tests/discourse/test_huggingface.py::test_huggingface_implements_discourse_source_and_is_registered PASSED [ 72%]
+tests/discourse/test_huggingface.py::test_poll_parses_daily_papers_with_attention_and_filters_by_since PASSED [ 81%]
+tests/discourse/test_huggingface.py::test_user_agent_identifies_tool_and_configured_contact PASSED [ 90%]
+tests/discourse/test_huggingface.py::test_link_targets_is_stubbed_empty_until_shared_resolver PASSED [100%]
+
+============================== 11 passed in 0.03s ==============================
