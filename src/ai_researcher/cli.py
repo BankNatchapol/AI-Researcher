@@ -234,6 +234,68 @@ def extract_corpus(
         )
 
 
+claim_app = typer.Typer(help="Inspect a single extracted claim.")
+app.add_typer(claim_app, name="claim")
+
+
+@app.command("claims")
+def list_claims_command(
+    scope: str = typer.Option(..., "--scope", help="Saved scope whose claims to list."),
+    claim_type: str | None = typer.Option(
+        None,
+        "--type",
+        help="Restrict to one claim_type value.",
+    ),
+    min_confidence: int | None = typer.Option(
+        None,
+        "--min-confidence",
+        min=0,
+        max=100,
+        help="Minimum pipeline confidence (0–100).",
+    ),
+    min_quality: int | None = typer.Option(
+        None,
+        "--min-quality",
+        min=0,
+        max=100,
+        help="Minimum evidence quality (0–100); independent of confidence.",
+    ),
+) -> None:
+    """List claims with confidence and evidence_quality as separate columns."""
+
+    from ai_researcher.claims import ClaimFilters, UnknownScopeError, render_claims_table
+    from ai_researcher.claims import query as claims_query
+
+    try:
+        claims = claims_query.list_claims(
+            ClaimFilters(
+                scope=scope,
+                claim_type=claim_type,
+                min_confidence=min_confidence,
+                min_quality=min_quality,
+            )
+        )
+    except UnknownScopeError as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(render_claims_table(claims))
+
+
+@claim_app.command("show")
+def show_claim(claim_id: int = typer.Argument(..., metavar="ID")) -> None:
+    """Print one claim with both scores, factors, and linked evidence."""
+
+    from ai_researcher.claims import UnknownClaimError, render_claim_detail
+    from ai_researcher.claims import query as claims_query
+
+    try:
+        claim = claims_query.get_claim(claim_id)
+    except UnknownClaimError as error:
+        raise typer.BadParameter(str(error)) from error
+    if claim is None:
+        raise typer.BadParameter(f"Unknown claim: {claim_id}")
+    typer.echo(render_claim_detail(claim))
+
+
 @app.command("ask")
 def ask_corpus(
     question: str = typer.Argument(..., metavar="QUESTION"),

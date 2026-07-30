@@ -117,11 +117,71 @@ class PaperSectionsResult(TypedDict):
     sections: list[SectionRecord]
 
 
+class ClaimScoreFactorRecord(TypedDict):
+    """One named contribution to confidence or evidence quality."""
+
+    name: str
+    raw_value: int | float | str | bool | None
+    contribution: float
+    max_contribution: float
+
+
+class ClaimListRecord(TypedDict):
+    """One claim in a list response."""
+
+    id: int
+    claim_text: str
+    claim_type: str
+    paper_id: int
+    confidence: int
+    evidence_quality: int
+    replication_count: int
+
+
+class ListClaimsResult(TypedDict):
+    """Structured result for ``list_claims``."""
+
+    claims: list[ClaimListRecord]
+
+
+class ClaimEvidenceRecord(TypedDict):
+    """One evidence link for a claim."""
+
+    tree_node_id: int
+    paper_id: int
+    stance: str
+    rationale_text: str
+    citation: str | None
+
+
+class GetClaimResult(TypedDict):
+    """Structured result for ``get_claim``."""
+
+    id: int
+    claim_text: str
+    claim_type: str
+    paper_id: int
+    confidence: int
+    evidence_quality: int
+    replication_count: int
+    confidence_factors: list[ClaimScoreFactorRecord]
+    evidence_quality_factors: list[ClaimScoreFactorRecord]
+    evidence: list[ClaimEvidenceRecord]
+
+
+class FindClaimEvidenceResult(TypedDict):
+    """Structured result for ``find_claim_evidence``."""
+
+    claim_id: int
+    evidence: list[ClaimEvidenceRecord]
+
+
 mcp = FastMCP(
     "AI-Researcher",
     instructions=(
         "Read-only access to research scopes, corpus status, grounded answers, "
-        "and parsed paper sections."
+        "parsed paper sections, and extracted claims with separate confidence "
+        "and evidence_quality scores."
     ),
 )
 
@@ -220,6 +280,102 @@ def get_paper_sections_tool(paper_id: int) -> PaperSectionsResult:
     return _load_paper_sections(paper_id)
 
 
+def list_claims_tool(
+    scope: str,
+    claim_type: str | None = None,
+    min_confidence: int | None = None,
+    min_quality: int | None = None,
+) -> ListClaimsResult:
+    """List claims with confidence and evidence_quality as distinct fields."""
+
+    from ai_researcher.claims import ClaimFilters
+    from ai_researcher.claims import query as claims_query
+
+    claims = claims_query.list_claims(
+        ClaimFilters(
+            scope=scope,
+            claim_type=claim_type,
+            min_confidence=min_confidence,
+            min_quality=min_quality,
+        )
+    )
+    return {
+        "claims": [
+            {
+                "id": claim.id,
+                "claim_text": claim.claim_text,
+                "claim_type": claim.claim_type,
+                "paper_id": claim.paper_id,
+                "confidence": claim.confidence,
+                "evidence_quality": claim.evidence_quality,
+                "replication_count": claim.replication_count,
+            }
+            for claim in claims
+        ]
+    }
+
+
+def get_claim_tool(claim_id: int) -> GetClaimResult:
+    """Return one claim with both scores, factors, and linked evidence."""
+
+    from ai_researcher.claims import query as claims_query
+
+    claim = claims_query.get_claim(claim_id)
+    if claim is None:
+        raise ValueError(f"Unknown claim: {claim_id}")
+    return {
+        "id": claim.id,
+        "claim_text": claim.claim_text,
+        "claim_type": claim.claim_type,
+        "paper_id": claim.paper_id,
+        "confidence": claim.confidence,
+        "evidence_quality": claim.evidence_quality,
+        "replication_count": claim.replication_count,
+        "confidence_factors": [
+            {
+                "name": factor.name,
+                "raw_value": factor.raw_value,
+                "contribution": factor.contribution,
+                "max_contribution": factor.max_contribution,
+            }
+            for factor in claim.confidence_factors
+        ],
+        "evidence_quality_factors": [
+            {
+                "name": factor.name,
+                "raw_value": factor.raw_value,
+                "contribution": factor.contribution,
+                "max_contribution": factor.max_contribution,
+            }
+            for factor in claim.evidence_quality_factors
+        ],
+        "evidence": [_evidence_record(item) for item in claim.evidence],
+    }
+
+
+def find_claim_evidence_tool(claim_id: int) -> FindClaimEvidenceResult:
+    """Return evidence links for one claim."""
+
+    from ai_researcher.claims import query as claims_query
+
+    evidence = claims_query.find_claim_evidence(claim_id)
+    return {
+        "claim_id": claim_id,
+        "evidence": [_evidence_record(item) for item in evidence],
+    }
+
+
+def _evidence_record(item: object) -> ClaimEvidenceRecord:
+    citation = getattr(item, "citation", None)
+    return {
+        "tree_node_id": int(getattr(item, "tree_node_id")),
+        "paper_id": int(getattr(item, "paper_id")),
+        "stance": str(getattr(item, "stance")),
+        "rationale_text": str(getattr(item, "rationale_text")),
+        "citation": None if citation is None else str(citation),
+    }
+
+
 def _load_paper_sections(paper_id: int) -> PaperSectionsResult:
     with connect() as connection:
         paper_title = connection.execute(
@@ -266,6 +422,9 @@ mcp.tool(name="list_scopes")(list_scopes_tool)
 mcp.tool(name="scope_status")(scope_status_tool)
 mcp.tool(name="ask_corpus")(ask_corpus_tool)
 mcp.tool(name="get_paper_sections")(get_paper_sections_tool)
+mcp.tool(name="list_claims")(list_claims_tool)
+mcp.tool(name="get_claim")(get_claim_tool)
+mcp.tool(name="find_claim_evidence")(find_claim_evidence_tool)
 
 
 def run() -> None:
@@ -276,7 +435,10 @@ def run() -> None:
 
 __all__ = [
     "ask_corpus_tool",
+    "find_claim_evidence_tool",
+    "get_claim_tool",
     "get_paper_sections_tool",
+    "list_claims_tool",
     "list_scopes_tool",
     "mcp",
     "run",
