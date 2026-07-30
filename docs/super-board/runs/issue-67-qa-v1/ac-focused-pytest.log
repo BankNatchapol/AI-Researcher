@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-67-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-67-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 5 items
+
+tests/test_discourse_sweep.py::test_clean_poll_writes_sweep_run_stores_mentions_advances_last_polled PASSED [ 20%]
+tests/test_discourse_sweep.py::test_repeat_poll_adds_zero_duplicate_items PASSED [ 40%]
+tests/test_discourse_sweep.py::test_failing_source_recorded_while_others_complete PASSED [ 60%]
+tests/test_discourse_sweep.py::test_missing_credentials_skipped_not_failed PASSED [ 80%]
+tests/test_discourse_sweep.py::test_cli_discourse_sweep_exits_zero_with_failing_source PASSED [100%]
+
+============================== 5 passed in 1.89s ===============================

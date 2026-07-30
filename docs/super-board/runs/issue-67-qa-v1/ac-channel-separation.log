@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-67-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-67-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 5 items
+
+tests/test_channel_separation.py::test_discourse_and_evidence_share_no_base_class PASSED [ 20%]
+tests/test_channel_separation.py::test_scoring_package_does_not_import_discourse PASSED [ 40%]
+tests/test_channel_separation.py::test_no_discourse_value_written_to_claim_score PASSED [ 60%]
+tests/test_channel_separation.py::test_channel_gate_detects_scoring_discourse_import PASSED [ 80%]
+tests/test_channel_separation.py::test_channel_gate_detects_discourse_into_claim_score PASSED [100%]
+
+============================== 5 passed in 0.09s ===============================
