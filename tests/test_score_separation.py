@@ -274,3 +274,41 @@ def test_score_arithmetic_gate_detects_arithmetic_callables(
 
     with pytest.raises(AssertionError, match="score arithmetic combines"):
         test_no_module_performs_arithmetic_combining_the_two_scores()
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        "\n".join(
+            (
+                "import operator",
+                "",
+                "def blend(row):",
+                "    combine = operator.add",
+                "    return combine(row.confidence, row.evidence_quality)",
+            )
+        ),
+        "\n".join(
+            (
+                "from operator import add as combine",
+                "",
+                "def blend(row):",
+                "    return combine(row.confidence, row.evidence_quality)",
+            )
+        ),
+    ),
+)
+def test_score_arithmetic_gate_detects_aliased_arithmetic_callables(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+) -> None:
+    (tmp_path / "violation.py").write_text(source, encoding="utf-8")
+    monkeypatch.setitem(
+        test_no_module_performs_arithmetic_combining_the_two_scores.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="score arithmetic combines"):
+        test_no_module_performs_arithmetic_combining_the_two_scores()
