@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-62-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-62-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 2 items
+
+tests/discourse/test_reddit.py::test_user_agent_identifies_tool_and_configured_contact PASSED [ 50%]
+tests/discourse/test_hackernews.py::test_user_agent_identifies_tool_and_configured_contact PASSED [100%]
+
+============================== 2 passed in 0.01s ===============================
