@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Extra Research Blog</title>
+    <item>
+      <guid>https://example.com/blog/extra-1</guid>
+      <title>Config-only feed post</title>
+      <link>https://example.com/blog/extra-1</link>
+      <pubDate>Tue, 20 Jun 2024 12:00:00 GMT</pubDate>
+      <author>extra@example.com</author>
+    </item>
+  </channel>
+</rss>
