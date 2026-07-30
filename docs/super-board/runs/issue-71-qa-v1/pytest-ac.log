@@ -1,0 +1,20 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-71-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-71-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 10 items
+
+tests/discourse/test_scirate.py::test_scirate_implements_discourse_source_and_is_registered PASSED [ 10%]
+tests/discourse/test_scirate.py::test_discourse_scirate_enabled_defaults_false PASSED [ 20%]
+tests/discourse/test_scirate.py::test_disabled_by_default_poll_makes_no_http_calls PASSED [ 30%]
+tests/discourse/test_scirate.py::test_discourse_sweep_does_not_contact_scirate_when_disabled PASSED [ 40%]
+tests/discourse/test_scirate.py::test_enabled_fetch_stores_only_scite_count_arxiv_id_and_link PASSED [ 50%]
+tests/discourse/test_scirate.py::test_stored_row_shape_excludes_page_content PASSED [ 60%]
+tests/discourse/test_scirate.py::test_http_403_degrades_silently PASSED  [ 70%]
+tests/discourse/test_scirate.py::test_link_targets_resolves_arxiv_from_scirate_url PASSED [ 80%]
+tests/discourse/test_scirate.py::test_design_doc_records_spike_outcome PASSED [ 90%]
+tests/discourse/test_scirate.py::test_env_example_documents_scirate_flag PASSED [100%]
+
+============================== 10 passed in 0.06s ==============================

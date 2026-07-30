@@ -34,6 +34,8 @@ class Settings:
     reddit_client_secret: str | None
     reddit_subreddits: tuple[str, ...]
     discourse_rss_feeds: tuple[str, ...]
+    discourse_scirate_enabled: bool
+    discourse_scirate_arxiv_ids: tuple[str, ...]
     score_movement_threshold: int
     sweep_evidence_hour: int
     sweep_discourse_hour: int
@@ -112,6 +114,18 @@ def _discourse_rss_feeds() -> tuple[str, ...]:
     return tuple(part.strip() for part in raw.split(",") if part.strip())
 
 
+def _truthy_environment_variable(name: str, *, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _discourse_scirate_arxiv_ids() -> tuple[str, ...]:
+    raw = os.environ.get("DISCOURSE_SCIRATE_ARXIV_IDS", "")
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
 def _source_min_intervals() -> Mapping[str, float]:
     return MappingProxyType(
         {
@@ -147,6 +161,10 @@ def _source_min_intervals() -> Mapping[str, float]:
                 "HUGGINGFACE_MIN_INTERVAL_SECONDS",
                 default=1.0,
             ),
+            "scirate": _nonnegative_float_environment_variable(
+                "SCIRATE_MIN_INTERVAL_SECONDS",
+                default=5.0,
+            ),
         }
     )
 
@@ -179,6 +197,11 @@ def get_settings() -> Settings:
         reddit_client_secret=_optional_environment_variable("REDDIT_CLIENT_SECRET"),
         reddit_subreddits=_reddit_subreddits(),
         discourse_rss_feeds=_discourse_rss_feeds(),
+        discourse_scirate_enabled=_truthy_environment_variable(
+            "DISCOURSE_SCIRATE_ENABLED",
+            default=False,
+        ),
+        discourse_scirate_arxiv_ids=_discourse_scirate_arxiv_ids(),
         score_movement_threshold=_positive_integer_environment_variable(
             "SCORE_MOVEMENT_THRESHOLD",
             default=10,
