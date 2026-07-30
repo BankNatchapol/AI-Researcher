@@ -175,6 +175,37 @@ def _arithmetic_aliases(
     return aliases
 
 
+def _default_arithmetic_aliases(
+    scope: ast.AST,
+    inherited: set[str],
+) -> set[str]:
+    if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+        return set()
+
+    positional = (*scope.args.posonlyargs, *scope.args.args)
+    positional_with_defaults = positional[len(positional) - len(scope.args.defaults) :]
+    parameter_defaults = [
+        *zip(positional_with_defaults, scope.args.defaults, strict=True),
+        *(
+            (parameter, default)
+            for parameter, default in zip(
+                scope.args.kwonlyargs,
+                scope.args.kw_defaults,
+                strict=True,
+            )
+            if default is not None
+        ),
+    ]
+    return {
+        parameter.arg
+        for parameter, default in parameter_defaults
+        if (
+            (callable_name := _callable_name(default)) in ARITHMETIC_CALLS
+            or callable_name in inherited
+        )
+    }
+
+
 def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
     violations: list[str] = []
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
@@ -192,9 +223,15 @@ def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
         for scope in scopes:
             nodes = _nodes_in_scope(scope)
             aliases = _score_aliases(nodes)
+            inherited_arithmetic_aliases = (
+                set() if scope is tree else set(module_arithmetic_aliases)
+            )
+            inherited_arithmetic_aliases.update(
+                _default_arithmetic_aliases(scope, inherited_arithmetic_aliases)
+            )
             arithmetic_aliases = _arithmetic_aliases(
                 nodes,
-                None if scope is tree else module_arithmetic_aliases,
+                inherited_arithmetic_aliases,
             )
             for node in nodes:
                 is_arithmetic = isinstance(node, ast.BinOp) or (
