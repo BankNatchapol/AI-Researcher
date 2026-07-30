@@ -65,12 +65,16 @@ def _score_fields(node: ast.AST) -> set[str]:
     return fields
 
 
-def _call_name(call: ast.Call) -> str | None:
-    if isinstance(call.func, ast.Name):
-        return call.func.id
-    if isinstance(call.func, ast.Attribute):
-        return call.func.attr
+def _callable_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
     return None
+
+
+def _call_name(call: ast.Call) -> str | None:
+    return _callable_name(call.func)
 
 
 def _nodes_in_scope(scope: ast.AST) -> tuple[ast.AST, ...]:
@@ -139,10 +143,44 @@ def _score_aliases(nodes: tuple[ast.AST, ...]) -> dict[str, set[str]]:
     return aliases
 
 
+def _arithmetic_aliases(
+    nodes: tuple[ast.AST, ...],
+    inherited: set[str] | None = None,
+) -> set[str]:
+    aliases = set(inherited or ())
+    changed = True
+    while changed:
+        changed = False
+        for node in nodes:
+            if isinstance(node, ast.ImportFrom):
+                for imported in node.names:
+                    if imported.name not in ARITHMETIC_CALLS:
+                        continue
+                    target_name = imported.asname or imported.name
+                    if target_name not in aliases:
+                        aliases.add(target_name)
+                        changed = True
+
+            assignment = _assignment(node)
+            if assignment is None:
+                continue
+            targets, value = assignment
+            callable_name = _callable_name(value)
+            if callable_name not in ARITHMETIC_CALLS and callable_name not in aliases:
+                continue
+            for target_name in _target_names(targets):
+                if target_name not in aliases:
+                    aliases.add(target_name)
+                    changed = True
+    return aliases
+
+
 def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
     violations: list[str] = []
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        module_nodes = _nodes_in_scope(tree)
+        module_arithmetic_aliases = _arithmetic_aliases(module_nodes)
         scopes = (
             tree,
             *(
@@ -154,9 +192,17 @@ def test_no_module_performs_arithmetic_combining_the_two_scores() -> None:
         for scope in scopes:
             nodes = _nodes_in_scope(scope)
             aliases = _score_aliases(nodes)
+            arithmetic_aliases = _arithmetic_aliases(
+                nodes,
+                None if scope is tree else module_arithmetic_aliases,
+            )
             for node in nodes:
                 is_arithmetic = isinstance(node, ast.BinOp) or (
-                    isinstance(node, ast.Call) and _call_name(node) in ARITHMETIC_CALLS
+                    isinstance(node, ast.Call)
+                    and (
+                        _call_name(node) in ARITHMETIC_CALLS
+                        or _call_name(node) in arithmetic_aliases
+                    )
                 )
                 if not is_arithmetic:
                     continue
