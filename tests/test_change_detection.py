@@ -569,6 +569,42 @@ def test_score_movement_below_threshold_is_ignored(isolated_database: Engine) ->
     assert changeset.score_movements == ()
 
 
+def test_pre_baseline_score_delta_is_not_re_reported(isolated_database: Engine) -> None:
+    """Two scores both before ``since`` with |Δ| ≥ threshold must leave score_movements empty."""
+
+    from ai_researcher.monitor.changes import detect_changes
+
+    scope_id = _seed_scope(isolated_database)
+    paper_id, tree_node_id = _seed_paper_with_tree(
+        isolated_database, title="Paper", created_at=BEFORE, scope_id=scope_id
+    )
+    claim_id = _seed_claim(isolated_database, paper_id=paper_id, tree_node_id=tree_node_id)
+    _subscribe_claim(isolated_database, claim_id)
+    earlier = BEFORE - timedelta(hours=1)
+    _add_score(
+        isolated_database,
+        claim_id=claim_id,
+        confidence=40,
+        evidence_quality=40,
+        scored_at=earlier,
+    )
+    _add_score(
+        isolated_database,
+        claim_id=claim_id,
+        confidence=70,
+        evidence_quality=70,
+        scored_at=BEFORE,
+    )
+
+    changeset = detect_changes(BASELINE, connection_factory=_connection_factory(isolated_database))
+
+    assert changeset.score_movements == ()
+    assert changeset.new_papers == ()
+    assert changeset.new_evidence == ()
+    assert changeset.stance_flips == ()
+    assert changeset.discourse_mentions == ()
+
+
 def test_score_movement_threshold_defaults_to_ten_and_is_configurable(
     isolated_database: Engine,
     monkeypatch: pytest.MonkeyPatch,

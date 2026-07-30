@@ -92,6 +92,8 @@ def detect_changes(
     Each category is queried independently. Score movement compares the two
     most recent ``claim_score`` rows per subscribed claim by ``scored_at`` and
     reports confidence and evidence-quality deltas separately — never blended.
+    A movement is only emitted when the newer score's ``scored_at`` is after
+    ``since``, so quiet windows do not re-report stale deltas.
     """
 
     open_connection = connect if connection_factory is None else connection_factory
@@ -102,7 +104,7 @@ def detect_changes(
             new_papers=_new_papers(connection, since),
             new_evidence=_new_evidence(connection, since),
             stance_flips=_stance_flips(connection, since),
-            score_movements=_score_movements(connection, movement_threshold),
+            score_movements=_score_movements(connection, since, movement_threshold),
             discourse_mentions=_discourse_mentions(connection, since),
         )
 
@@ -201,8 +203,11 @@ def _stance_flips(connection: Connection, since: datetime) -> tuple[StanceFlipCh
 
 def _score_movements(
     connection: Connection,
+    since: datetime,
     threshold: int,
 ) -> tuple[ScoreMovementChange, ...]:
+    """Compare the two most recent scores per claim; emit only if newer is after ``since``."""
+
     claim_ids = _active_claim_ids(connection)
     rows = connection.execute(
         select(
@@ -220,20 +225,23 @@ def _score_movements(
         )
     ).all()
 
-    by_claim: dict[int, list[tuple[int, int]]] = {}
+    by_claim: dict[int, list[tuple[int, int, datetime]]] = {}
     for row in rows:
         claim_id = int(row.claim_id)
         bucket = by_claim.setdefault(claim_id, [])
         if len(bucket) >= 2:
             continue
-        bucket.append((int(row.confidence), int(row.evidence_quality)))
+        bucket.append((int(row.confidence), int(row.evidence_quality), row.scored_at))
 
     movements: list[ScoreMovementChange] = []
     for claim_id, scores in sorted(by_claim.items()):
         if len(scores) < 2:
             continue
-        confidence_after, evidence_quality_after = scores[0]
-        confidence_before, evidence_quality_before = scores[1]
+        confidence_after, evidence_quality_after, scored_at_after = scores[0]
+        confidence_before, evidence_quality_before, _scored_at_before = scores[1]
+        # Quiet windows must not re-report deltas whose newer row is ≤ the baseline.
+        if scored_at_after <= since:
+            continue
         confidence_delta = confidence_after - confidence_before
         evidence_quality_delta = evidence_quality_after - evidence_quality_before
         confidence_moved = abs(confidence_delta) >= threshold
