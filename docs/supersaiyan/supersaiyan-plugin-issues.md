@@ -362,6 +362,59 @@ the Codex fork" bug report months from now, with no obvious cause.
 
 ---
 
+## 11. The status renderer's `attempt N/3` was a hardcoded literal, disconnected from `config.rebuild_cap`; `absolute_rebuild_ceiling` (item 9) was reconsidered and removed
+
+**What happened:** watching issue #48 rebuild repeatedly (`loop:rebuild-2`, three
+Building → QA → Review cycles with `reap: stale lock + assignee swept` events between
+each), the dashboard consistently showed `attempt 3/3`. That number matched neither
+config value in play: `rebuild_cap` was `2`, `absolute_rebuild_ceiling` was `4`. Traced
+it to `super-board-status.py`'s `attempt_str()`/`rebuild_suffix()`:
+
+```python
+def attempt_str(item):
+    return f"{min(rebuild_count(item) + 1, 3)}/3"
+```
+
+The `3` was a literal, not `rebuild_cap + 1` computed from the loaded config — the
+script reads `cfg["project"]["owner"]` etc. but never reads `rebuild_cap` at all. It
+happened to equal the correct value for the *original* default (`rebuild_cap=2` →
+`2+1=3`), which is presumably how a hardcoded `3` ended up looking right in testing —
+but changing `rebuild_cap` in config would never change what the dashboard displayed.
+
+**Separately, on reflection:** item 9's `absolute_rebuild_ceiling` gate (added the
+previous session as an independent hash-blind hard backstop, specifically to prevent a
+card from rebuilding forever if every failure had a different root cause) was
+reconsidered and removed. After walking through the reasoning again, the call was made
+that `rebuild_cap` alone (hash-aware, with human-reauthorization already resetting the
+counter per item 9) is the wanted safety property, and a second independent ceiling
+added more configuration surface than value. This is a deliberate reversal of item 9's
+second change, not a bug fix — see `absolute_rebuild_ceiling`'s removal from `run.md`'s
+Halt gates table, decision list, and Root-cause-hash section.
+
+**Status: fixed in the plugin itself** (marketplace + cache synced; local commits, not
+yet pushed to `BankNatchapol/SuperSaiyan`). Three changes:
+
+1. **`rebuild_cap` now supports `null` for unlimited.** Documented in
+   `config-schema.json` and `run.md`: `rebuild_cap: null` means the card is never
+   auto-blocked on the cap, no matter how many times an identical root-cause hash
+   recurs. This is what actually satisfies "adjustable attempt count, with an unlimited
+   option" — the ask that surfaced this whole investigation.
+2. **`absolute_rebuild_ceiling` removed entirely** from `run.md` (Halt gates table,
+   step-7 decision list, Root-cause-hash section) and `config-schema.json`, both
+   duplicate copies (`skills/super-board/references/`, `skills/supersaiyan/references/`).
+3. **`super-board-status.py` now reads `rebuild_cap` from the loaded config** and
+   computes the denominator as `rebuild_cap + 1` (or renders no denominator at all when
+   `rebuild_cap` is `null`), instead of hardcoding `3`. `attempt_str()` and
+   `rebuild_suffix()` both take `rebuild_cap` as an explicit parameter now rather than
+   reading a magic constant.
+
+**Upstream fix needed:** none beyond what's described above — this was caught and
+fixed in the same session it was noticed. The general lesson (item 10 still applies):
+any config value that drives displayed behavior needs to actually flow from config into
+the renderer, not get reimplemented as a literal that happens to match the default.
+
+---
+
 ## Summary table
 
 | # | Problem | Status | Where the fix lives |
@@ -375,8 +428,9 @@ the Codex fork" bug report months from now, with no obvious cause.
 | 6 | Fixed-tick polling exhausts GraphQL quota | Fixed, measured live (6s vs 600s) | Event-driven dispatch |
 | 7 | No backend abstraction — dispatcher forked per tool | Working, but duplicated | Needs `Backend` interface |
 | 8 | Orphan-guard pattern never matched real Cursor workers | Fixed, verified against a live process | Pattern + regression test |
-| 9 | `rebuild_cap` never resets after human authorization; blocks fire regardless of hash | Fixed (plugin, local, unpushed) — hash-aware enforcement + `absolute_rebuild_ceiling` backstop, verified live on issue #47 | `run.md` + `config-schema.json`, both copies |
+| 9 | `rebuild_cap` never resets after human authorization; blocks fire regardless of hash | Fixed (plugin, local, unpushed) — hash-aware enforcement, verified live on issue #47. Originally paired with an `absolute_rebuild_ceiling` backstop, later removed — see #11. | `run.md` + `config-schema.json`, both copies |
 | 10 | `run.md`/`config-schema.json` exist in two silently-divergent copies (`super-board` vs `supersaiyan` skills) | Fixed for this change; structural risk remains for future edits | Needs a single source of truth or a sync check |
+| 11 | Dashboard's `attempt N/3` was a hardcoded literal, ignoring `config.rebuild_cap`; `absolute_rebuild_ceiling` reconsidered and removed | Fixed (plugin, local, unpushed) — `rebuild_cap` now supports `null` (unlimited) and the renderer reads it from config instead of hardcoding `3` | `super-board-status.py`, `run.md` + `config-schema.json` (ceiling removed), both copies |
 
 Items with no "upstream" location are things that had to be re-solved per project because
 the fix lives in this repo's scripts/config rather than in the SuperSaiyan plugin itself.
