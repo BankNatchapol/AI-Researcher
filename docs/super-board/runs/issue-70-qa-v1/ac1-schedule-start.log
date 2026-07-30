@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-70-qa/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/banknatchapol/Desktop/Codes/AI-Researcher/.worktrees/issue-70-qa
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 2 items
+
+tests/test_scheduler.py::test_cli_schedule_start_registers_jobs_without_blocking PASSED [ 50%]
+tests/test_scheduler.py::test_build_scheduler_registers_daily_evidence_and_discourse_jobs PASSED [100%]
+
+============================== 2 passed in 0.09s ===============================

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -105,7 +105,6 @@ def test_next_run_times_reports_both_jobs(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_failing_job_is_logged_and_does_not_stop_scheduler(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     _set_required_environment(monkeypatch)
 
@@ -131,12 +130,14 @@ def test_failing_job_is_logged_and_does_not_stop_scheduler(
     assert evidence_job is not None
     assert discourse_job is not None
 
-    with caplog.at_level(logging.ERROR):
+    # Package logger uses propagate=False, so patch logger.exception directly.
+    with patch.object(scheduler_mod.logger, "exception") as mock_exception:
         evidence_job.func()  # wrapped callable must swallow the error
         discourse_job.func()
 
     assert ran_second["ok"] is True
-    assert any("fail" in record.message.lower() for record in caplog.records)
+    mock_exception.assert_called_once()
+    assert mock_exception.call_args.args == ("Scheduled job %s failed", "evidence_sweep")
 
 
 def test_cli_schedule_status_reports_next_run_times(
