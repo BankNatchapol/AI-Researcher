@@ -128,7 +128,7 @@ def parse_manifest(text: str, today_iso: str) -> dict[str, Any]:
       inflight: {lane → {pid, issue, ts}}    — workers currently dispatched
       recents: [{epoch, verb, glyph, issue, target, detail}, ...]
       last_tick: HH:MM:SS of the most recent `tick —` line, or None
-      start_hms: HH:MM:SS of the most recent `super-board run started`, or None
+      start_hms: HH:MM:SS of the most recent run-started line, or None
       exited: True if the run has logged `exiting cleanly`
       reaped_count: number of `reaped stale lock ...` lines seen
     """
@@ -147,9 +147,20 @@ def parse_manifest(text: str, today_iso: str) -> dict[str, Any]:
         hms = f"{h}:{mi}:{s}"
         ep = hms_to_epoch(today_iso, hms)
 
-        if "super-board run started" in rest:
+        # Matches all three dispatchers that share one manifest file per day:
+        # "super-board run started" (native), "supersaiyan codex run started",
+        # "supersaiyan cursor run started". A new run process always starts
+        # with empty PID variables (see e.g. supersaiyan-cursor-run.sh's
+        # `BUILD_PID=""; QA_PID=""; REVIEW_PID=""` at startup) — a card left
+        # dispatched with no matching reap by an OLD, now-exited run (Review
+        # has no later lane to prove it finished, so this happens easily on
+        # a clean Review→Done with no logged reap) must not persist as a
+        # phantom "active worker" across a dispatcher restart. Reset here to
+        # mirror the real process's own fresh state.
+        if "run started — config=" in rest:
             start_hms = hms
             exited = False
+            inflight = {}
             continue
         if "exiting cleanly" in rest:
             exited = True
