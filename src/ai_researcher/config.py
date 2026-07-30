@@ -34,6 +34,7 @@ class Settings:
     reddit_client_secret: str | None
     reddit_subreddits: tuple[str, ...]
     discourse_rss_feeds: tuple[str, ...]
+    score_movement_threshold: int
 
 
 def _required_environment_variable(name: str) -> str:
@@ -165,4 +166,8 @@ def get_settings() -> Settings:
         reddit_client_secret=_optional_environment_variable("REDDIT_CLIENT_SECRET"),
         reddit_subreddits=_reddit_subreddits(),
         discourse_rss_feeds=_discourse_rss_feeds(),
+        score_movement_threshold=_positive_integer_environment_variable(
+            "SCORE_MOVEMENT_THRESHOLD",
+            default=10,
+        ),
     )
