@@ -408,10 +408,45 @@ yet pushed to `BankNatchapol/SuperSaiyan`). Three changes:
    `rebuild_suffix()` both take `rebuild_cap` as an explicit parameter now rather than
    reading a magic constant.
 
-**Upstream fix needed:** none beyond what's described above — this was caught and
-fixed in the same session it was noticed. The general lesson (item 10 still applies):
-any config value that drives displayed behavior needs to actually flow from config into
-the renderer, not get reimplemented as a literal that happens to match the default.
+**Addendum, same session, found live on issue #48 itself:** fixing the hardcoded `3`
+wasn't enough — the numerator was *also* silently capped. `attempt_str()`'s formula was
+`min(rebuild_count + 1, rebuild_cap + 1)`, so once a card's true attempt count passed
+the budget, the display froze at `budget/budget` forever instead of continuing to grow.
+Issue #48 made this concrete: `loop:rebuild-6` (the 7th build attempt) still rendered as
+`attempt 3/3`, indistinguishable from a card on its 3rd attempt. Cross-referencing every
+QA/Review comment against the actual commits on PR #57's branch confirmed all 6
+rebuilds carried genuinely distinct `root-cause-hash` values (`3d1ec6ec148e`,
+`39787a969fc2`, `aa0a3851fff3`, `6b8bed27d8e0`, `aa1bb2bb4991`, `d083c1dde6c7`) — six
+real, different AST-gate bypass techniques found by mutation-style QA, each with a
+matching test added to `tests/test_score_separation.py`. So `rebuild_cap` was working
+exactly as designed (no two consecutive identical failures, nothing to block on); the
+dashboard just couldn't show that honestly.
+
+Fixed by splitting the single capped number into two real, uncapped ones:
+
+- **Total attempts** — `rebuild_count + 1`, never clamped. Now correctly shows `7`
+  instead of freezing at `3`.
+- **Same-issue streak** — how many *consecutive* attempts share the current
+  `root-cause-hash`, computed by fetching each rebuild-labeled card's comments
+  (`gh issue view --json comments`) and counting the trailing run of identical hashes
+  (`trailing_hash_streak()`). This is the number `rebuild_cap` actually gates on, so
+  showing it (`1/2` for issue #48, correctly) is what tells a human "how close to being
+  blocked," which the frozen total never could.
+
+Both `attempt_str()` and `rebuild_suffix()` now render `<total> total ·
+<same-issue>/<rebuild_cap> same-issue` (fresh cards with no rebuild yet still show a
+bare number, unchanged). The same-issue fetch shares its `gh issue view` call with the
+existing Blocked/Skipped reason-tag fetch when a card needs both, so this doesn't double
+the API cost for the common case (a blocked card usually got there via a repeated hash).
+`status.md`'s locked-template spec was updated to match in both duplicate copies, synced
+to cache.
+
+**Upstream fix needed:** none beyond what's described above — caught and fixed live,
+same session. The general lesson (item 10 still applies, and this makes a second
+instance): any config value or gate condition that drives displayed behavior needs to
+actually flow from the real source of truth into the renderer — not get reimplemented as
+a literal, and not get silently clamped in a way that hides the exact situation (a
+runaway card) the dashboard exists to surface.
 
 ---
 
@@ -430,7 +465,7 @@ the renderer, not get reimplemented as a literal that happens to match the defau
 | 8 | Orphan-guard pattern never matched real Cursor workers | Fixed, verified against a live process | Pattern + regression test |
 | 9 | `rebuild_cap` never resets after human authorization; blocks fire regardless of hash | Fixed (plugin, local, unpushed) — hash-aware enforcement, verified live on issue #47. Originally paired with an `absolute_rebuild_ceiling` backstop, later removed — see #11. | `run.md` + `config-schema.json`, both copies |
 | 10 | `run.md`/`config-schema.json` exist in two silently-divergent copies (`super-board` vs `supersaiyan` skills) | Fixed for this change; structural risk remains for future edits | Needs a single source of truth or a sync check |
-| 11 | Dashboard's `attempt N/3` was a hardcoded literal, ignoring `config.rebuild_cap`; `absolute_rebuild_ceiling` reconsidered and removed | Fixed (plugin, local, unpushed) — `rebuild_cap` now supports `null` (unlimited) and the renderer reads it from config instead of hardcoding `3` | `super-board-status.py`, `run.md` + `config-schema.json` (ceiling removed), both copies |
+| 11 | Dashboard's `attempt N/3` was a hardcoded, clamped literal — ignored `config.rebuild_cap` and froze once the true count passed it; `absolute_rebuild_ceiling` reconsidered and removed | Fixed (plugin, local, unpushed) — `rebuild_cap` supports `null` (unlimited); dashboard now shows uncapped total attempts AND the same-issue root-cause-hash streak, verified live against issue #48's 6 genuinely distinct rebuilds | `super-board-status.py`, `run.md` + `config-schema.json` (ceiling removed), `status.md`, all in both copies |
 
 Items with no "upstream" location are things that had to be re-solved per project because
 the fix lives in this repo's scripts/config rather than in the SuperSaiyan plugin itself.
