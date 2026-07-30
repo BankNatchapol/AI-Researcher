@@ -9,14 +9,41 @@ import pytest
 
 PACKAGE_ROOT = Path(__file__).parents[1] / "src" / "ai_researcher"
 ARITHMETIC_CALLS = {
+    "add",
+    "and_",
     "average",
+    "divmod",
+    "floordiv",
     "fmean",
+    "iadd",
+    "iand",
+    "ifloordiv",
+    "ilshift",
+    "imatmul",
+    "imod",
+    "imul",
+    "ior",
+    "ipow",
+    "irshift",
+    "isub",
+    "itruediv",
+    "ixor",
+    "lshift",
+    "matmul",
     "max",
     "mean",
     "median",
     "min",
+    "mod",
+    "mul",
+    "or_",
+    "pow",
     "prod",
+    "rshift",
+    "sub",
     "sum",
+    "truediv",
+    "xor",
 }
 
 
@@ -195,6 +222,46 @@ def test_score_arithmetic_gate_detects_aliased_score_fields(
                 "    pipeline = row.confidence",
                 "    science = row.evidence_quality",
                 "    return (pipeline + science) / 2",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        test_no_module_performs_arithmetic_combining_the_two_scores.__globals__,
+        "PACKAGE_ROOT",
+        tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="score arithmetic combines"):
+        test_no_module_performs_arithmetic_combining_the_two_scores()
+
+
+@pytest.mark.parametrize(
+    "arithmetic_call",
+    (
+        "operator.add",
+        "operator.sub",
+        "operator.mul",
+        "operator.truediv",
+        "operator.and_",
+        "operator.or_",
+        "operator.iand",
+        "operator.ior",
+        "pow",
+    ),
+)
+def test_score_arithmetic_gate_detects_arithmetic_callables(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    arithmetic_call: str,
+) -> None:
+    (tmp_path / "violation.py").write_text(
+        "\n".join(
+            (
+                "import operator",
+                "",
+                "def blend(row):",
+                f"    return {arithmetic_call}(row.confidence, row.evidence_quality)",
             )
         ),
         encoding="utf-8",
