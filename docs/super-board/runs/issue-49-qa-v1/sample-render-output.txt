@@ -1,0 +1,56 @@
+=== AC1: claims table (separate confidence / evidence_quality columns) ===
+id  type        confidence  evidence_quality  replication  claim                               
+1   threshold   95          40                1            Surface-code threshold is 1%.       
+2   threshold   20          80                3            Logical error rate drops below 1e-6.
+3   error_rate  70          75                2            Decoder latency is 1 us.            
+
+=== AC2: --min-quality 70 (independent of confidence) ===
+id  type        confidence  evidence_quality  replication  claim                               
+2   threshold   20          80                3            Logical error rate drops below 1e-6.
+3   error_rate  70          75                2            Decoder latency is 1 us.            
+ids: [2, 3]
+
+=== AC3: claim show detail (factors + evidence) ===
+Claim 2
+Type: threshold
+Paper: 202
+Text: Logical error rate drops below 1e-6.
+Replication count: 3
+
+confidence: 20
+confidence factors:
+  - independent_supporting_nodes: raw=2 contribution=16.0/25.0
+  - verbatim_overlap: raw=0.8 contribution=20.0/25.0
+
+evidence_quality: 80
+evidence_quality factors:
+  - full_text: raw='parsed' contribution=20.0/20.0
+  - replication: raw=3 contribution=15.0/20.0
+
+Evidence
+- [supports] Paper 202 — Results — pp. 4–5 — DOI: 10.1000/202
+  rationale: "The logical error rate is reported below 1e-6."
+- [refutes] Paper 101 — Discussion — p. 8 — DOI: 10.1000/101
+  rationale: "Earlier experiment saw higher residual error."
+
+=== AC4: MCP list_claims-shaped JSON (distinct top-level scores) ===
+{
+  "claims": [
+    {
+      "id": 2,
+      "claim_type": "threshold",
+      "confidence": 20,
+      "evidence_quality": 80,
+      "replication_count": 3
+    },
+    {
+      "id": 3,
+      "claim_type": "error_rate",
+      "confidence": 70,
+      "evidence_quality": 75,
+      "replication_count": 2
+    }
+  ]
+}
+keys on claim[0]: ['claim_type', 'confidence', 'evidence_quality', 'id', 'replication_count']
+combined_score present? False
