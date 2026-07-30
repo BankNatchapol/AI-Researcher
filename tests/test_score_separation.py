@@ -44,6 +44,25 @@ ARITHMETIC_CALLS = {
     "sum",
     "truediv",
     "xor",
+} | {
+    f"__{prefix}{operation}__"
+    for prefix in ("", "r", "i")
+    for operation in (
+        "add",
+        "and",
+        "divmod",
+        "floordiv",
+        "lshift",
+        "matmul",
+        "mod",
+        "mul",
+        "or",
+        "pow",
+        "rshift",
+        "sub",
+        "truediv",
+        "xor",
+    )
 }
 
 
