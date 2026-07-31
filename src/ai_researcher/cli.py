@@ -26,8 +26,17 @@ def main(
 ) -> None:
     """Research quantum computing and AI literature locally."""
 
+    from dotenv import load_dotenv
+
     from ai_researcher.logging import configure_logging
 
+    # A gitignored .env in the current directory is a valid source of
+    # config (see AGENTS.md) — this only fills in variables not already
+    # set, so an explicit shell export always wins. Scoped to the CLI
+    # entry point (not config.py's import) so it never fires just from
+    # importing ai_researcher.config/cli in a test, which would otherwise
+    # silently restore a variable a test intentionally deleted.
+    load_dotenv()
     configure_logging(verbose=verbose)
 
 

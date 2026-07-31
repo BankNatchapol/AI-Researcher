@@ -13,6 +13,7 @@ dependencies = [
     "mcp>=1.27,<2",
     "pg8000>=1.31,<2",
     "pydantic>=2,<3",
+    "python-dotenv>=1.0,<2",
     "pyyaml>=6,<7",
     "sqlalchemy>=2.0,<3",
     "typer>=0.16,<1",
