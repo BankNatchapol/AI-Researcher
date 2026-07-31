@@ -5,9 +5,12 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+from ai_researcher.logging import get_logger
 from ai_researcher.scoping import ScopeDefinition
 from ai_researcher.sources import registry
 from ai_researcher.sources.base import EvidenceSource, PaperRef
+
+logger = get_logger(__name__)
 
 
 def estimate_scope(
@@ -20,7 +23,12 @@ def estimate_scope(
     adapters = registry.registered() if sources is None else tuple(sources)
     identities: set[tuple[str, str]] = set()
     for adapter in adapters:
-        for ref in adapter.search(scope, scope.per_source_limit):
+        try:
+            refs = list(adapter.search(scope, scope.per_source_limit))
+        except Exception:  # noqa: BLE001 — one source must not abort the estimate
+            logger.exception("Scope estimate search failed for source %s", adapter.name)
+            continue
+        for ref in refs:
             identities.add(_reference_identity(ref))
     return len(identities)
 

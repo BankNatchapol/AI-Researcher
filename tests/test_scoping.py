@@ -88,6 +88,34 @@ def test_default_estimation_uses_every_registered_source(monkeypatch) -> None:
     assert estimate_scope(_scope()) == 2
 
 
+class FailingSource:
+    """Evidence source whose search always raises, simulating a rate-limited API."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def search(self, scope, limit: int):
+        del scope, limit
+        raise RuntimeError(f"{self.name} search failed")
+
+    def fetch_metadata(self, ref: PaperRef):
+        raise AssertionError(f"estimation fetched metadata for {ref.external_id}")
+
+    def pdf_url(self, ref: PaperRef) -> str | None:
+        raise AssertionError(f"estimation requested a PDF URL for {ref.external_id}")
+
+
+def test_estimate_skips_a_failing_source_and_keeps_the_rest() -> None:
+    from ai_researcher.scoping.estimate import estimate_scope
+
+    broken = FailingSource("semantic_scholar")
+    arxiv = FixtureSource("arxiv", [PaperRef("arxiv", "2401.00001", title="Still counted")])
+
+    estimate = estimate_scope(_scope(), sources=(broken, arxiv))
+
+    assert estimate == 1
+
+
 class FixtureResult:
     def __init__(self, rows: list[dict]) -> None:
         self.rows = rows

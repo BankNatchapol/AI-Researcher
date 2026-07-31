@@ -206,6 +206,78 @@ def test_discover_queries_every_source_and_merges_by_identity(monkeypatch) -> No
     assert {row.source for row in shared.paper_sources} == {"arxiv", "openalex"}
 
 
+class FailingSearchSource:
+    """Evidence source whose search always raises, simulating a rate-limited API."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def search(self, scope, limit: int):
+        del scope, limit
+        raise RuntimeError(f"{self.name} search failed")
+
+    def fetch_metadata(self, ref: PaperRef) -> PaperMetadata:
+        raise AssertionError(f"discovery fetched metadata for {ref.external_id}")
+
+
+def test_discover_skips_a_source_whose_search_fails_and_keeps_the_rest(monkeypatch) -> None:
+    from ai_researcher.ingest import discover
+    from ai_researcher.sources import registry
+
+    broken = FailingSearchSource("semantic_scholar")
+    arxiv = FixtureSource(
+        name="arxiv",
+        refs=(PaperRef("arxiv", "2401.00001", title="Still discovered"),),
+        metadata_by_id={
+            "2401.00001": PaperMetadata(
+                source="arxiv",
+                external_id="2401.00001",
+                title="Still discovered",
+                arxiv_id="2401.00001",
+                authors=("Ada Lovelace",),
+                published_at=date(2024, 1, 1),
+            )
+        },
+    )
+    monkeypatch.setattr(registry, "_SOURCES", {"semantic_scholar": broken, "arxiv": arxiv})
+
+    merged = discover.discover_candidates(_scope(per_source_limit=5))
+
+    assert len(merged) == 1
+    assert merged[0].title == "Still discovered"
+
+
+def test_discover_skips_a_paper_whose_metadata_fetch_fails_and_keeps_the_rest(
+    monkeypatch,
+) -> None:
+    from ai_researcher.ingest import discover
+    from ai_researcher.sources import registry
+
+    arxiv = FixtureSource(
+        name="arxiv",
+        refs=(
+            PaperRef("arxiv", "2401.00001", title="Fetch fails"),
+            PaperRef("arxiv", "2401.00002", title="Fetch succeeds"),
+        ),
+        metadata_by_id={
+            "2401.00002": PaperMetadata(
+                source="arxiv",
+                external_id="2401.00002",
+                title="Fetch succeeds",
+                arxiv_id="2401.00002",
+                authors=("Grace Hopper",),
+                published_at=date(2024, 2, 1),
+            )
+        },
+    )
+    monkeypatch.setattr(registry, "_SOURCES", {"arxiv": arxiv})
+
+    merged = discover.discover_candidates(_scope(per_source_limit=5))
+
+    assert len(merged) == 1
+    assert merged[0].title == "Fetch succeeds"
+
+
 def test_clean_ingest_writes_job_papers_and_sections(
     isolated_database: Engine,
     tmp_path: Path,
