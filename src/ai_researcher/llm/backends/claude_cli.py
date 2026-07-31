@@ -5,6 +5,18 @@ import subprocess
 
 from ai_researcher.llm.errors import ModelCallError, ModelOutputError, ModelTimeoutError
 
+# Pinned rather than left to the CLI's own ambient/session default, which may be set to
+# a premium model (e.g. Fable) that requires separate usage credits beyond the
+# subscription this backend is meant to run under. "sonnet" is a subscription-included
+# alias, not a specific dated model version.
+_MODEL = "sonnet"
+
+# A --json-schema request is answered via an internal tool call, which costs an extra
+# turn beyond the plain-text case (observed 2-4 turns live, never 1) — 1 turn is enough
+# for free text but reliably starves schema requests before the tool result comes back.
+_SCHEMA_MAX_TURNS = "6"
+_TEXT_MAX_TURNS = "1"
+
 
 class ClaudeCliBackend:
     """Run a read-only, single-turn request through ``claude -p``."""
@@ -18,9 +30,11 @@ class ClaudeCliBackend:
             "--output-format",
             "json",
             "--max-turns",
-            "1",
+            _SCHEMA_MAX_TURNS if schema is not None else _TEXT_MAX_TURNS,
             "--tools",
             "",
+            "--model",
+            _MODEL,
         ]
         if schema is not None:
             command.extend(
@@ -38,6 +52,7 @@ class ClaudeCliBackend:
                 check=False,
                 text=True,
                 timeout=timeout,
+                stdin=subprocess.DEVNULL,
             )
         except subprocess.TimeoutExpired as error:
             raise ModelTimeoutError(f"claude timed out after {timeout} seconds") from error

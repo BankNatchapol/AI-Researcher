@@ -42,6 +42,7 @@ class CodexCliBackend:
                     check=False,
                     text=True,
                     timeout=timeout,
+                    stdin=subprocess.DEVNULL,
                 )
             except subprocess.TimeoutExpired as error:
                 raise ModelTimeoutError(f"codex timed out after {timeout} seconds") from error

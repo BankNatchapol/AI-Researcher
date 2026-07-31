@@ -134,6 +134,38 @@ def test_claude_terminates_variadic_tools_before_prompt(
     assert command[-2:] == ["--", "USER:\nSENTINEL_PROMPT"]
 
 
+def test_claude_pins_a_subscription_included_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "claude")
+    run = Mock(return_value=_completed(json.dumps({"result": "Pinned model answer"})))
+    monkeypatch.setattr(subprocess, "run", run)
+
+    gateway.complete([{"role": "user", "content": "Hello"}], "answer")
+
+    command = run.call_args.args[0]
+    assert command[command.index("--model") + 1] == "sonnet"
+    assert "fable" not in command
+
+
+def test_claude_raises_the_turn_budget_for_schema_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_EXTRACT", "claude")
+    schema = {"type": "object"}
+    run = Mock(return_value=_completed(json.dumps({"structured_output": {"claim": "grounded"}})))
+    monkeypatch.setattr(subprocess, "run", run)
+
+    gateway.complete(
+        [{"role": "user", "content": "Extract."}],
+        "extract",
+        schema=schema,
+    )
+
+    command = run.call_args.args[0]
+    assert command[command.index("--max-turns") + 1] == "6"
+
+
 def test_claude_returns_an_object_for_a_schema_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -349,6 +381,27 @@ def test_malformed_schema_output_raises_model_output_error(
             "extract",
             schema={"type": "object"},
         )
+
+
+@pytest.mark.parametrize("backend", ["claude", "codex", "cursor"])
+def test_model_cli_never_reads_the_parent_process_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", backend)
+
+    def fake_run(command: list[str], **kwargs):
+        if backend == "codex":
+            _write_codex_result(command, "done")
+        return _completed(json.dumps({"result": "done"}))
+
+    run = Mock(side_effect=fake_run)
+    monkeypatch.setattr(subprocess, "run", run)
+
+    gateway.complete([{"role": "user", "content": "Hello"}], "answer")
+
+    assert run.call_args.kwargs["stdin"] == subprocess.DEVNULL
 
 
 def test_unknown_job_uses_the_default_backend(monkeypatch: pytest.MonkeyPatch) -> None:

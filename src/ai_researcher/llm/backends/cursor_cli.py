@@ -57,6 +57,7 @@ class CursorCliBackend:
                 check=False,
                 text=True,
                 timeout=timeout,
+                stdin=subprocess.DEVNULL,
             )
         except subprocess.TimeoutExpired as error:
             raise ModelTimeoutError(f"cursor timed out after {timeout} seconds") from error
