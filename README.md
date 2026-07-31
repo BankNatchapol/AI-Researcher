@@ -45,7 +45,7 @@ These hold across the whole codebase, each backed by a test that fails the build
 - **Evidence and discourse are separate channels** — nothing from Reddit/HN/RSS/etc. may
   influence a score. Community attention measures interest, not validity.
 - **All model calls go through one CLI gateway** — access is via CLI subscription
-  (`claude -p`, `codex exec`), never a provider API key.
+  (`claude -p`, `codex exec`, `agent -p --mode ask`), never a provider API key.
 - **Corpus ceiling is 1,000 papers per scope** — precision over recall.
 
 ## Stack

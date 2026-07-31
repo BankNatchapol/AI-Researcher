@@ -1,6 +1,7 @@
 """Tests for the non-agentic CLI model gateway."""
 
 import json
+import logging
 import os
 import subprocess
 import threading
@@ -159,7 +160,127 @@ def test_claude_returns_an_object_for_a_schema_request(
     assert run.call_args.kwargs["timeout"] == 9
 
 
-@pytest.mark.parametrize("backend", ["claude", "codex"])
+def test_cursor_returns_text_for_a_plain_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "cursor")
+    run = Mock(return_value=_completed(json.dumps({"result": "Cursor answer"})))
+    monkeypatch.setattr(subprocess, "run", run)
+
+    result = gateway.complete([{"role": "user", "content": "Summarize."}], "summarize-tree")
+
+    assert result == "Cursor answer"
+    command = run.call_args.args[0]
+    assert command[:-1] == [
+        "agent",
+        "-p",
+        "--mode",
+        "ask",
+        "--output-format",
+        "json",
+        "--sandbox",
+        "enabled",
+    ]
+    assert command[-1] == "USER:\nSummarize."
+    assert run.call_args.kwargs["timeout"] == 37
+
+
+def test_cursor_returns_an_object_for_a_schema_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_EXTRACT", "cursor")
+    schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
+    run = Mock(
+        return_value=_completed(json.dumps({"result": json.dumps({"answer": "structured"})}))
+    )
+    monkeypatch.setattr(subprocess, "run", run)
+
+    result = gateway.complete(
+        [{"role": "user", "content": "Extract."}],
+        "extract",
+        schema=schema,
+        timeout=9,
+    )
+
+    assert result == {"answer": "structured"}
+    assert run.call_args.kwargs["timeout"] == 9
+
+
+def test_cursor_embeds_schema_instructions_in_the_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "cursor")
+    schema = {"type": "object", "properties": {"claim": {"type": "string"}}}
+    run = Mock(return_value=_completed(json.dumps({"result": json.dumps({"claim": "x"})})))
+    monkeypatch.setattr(subprocess, "run", run)
+
+    gateway.complete(
+        [{"role": "user", "content": "Extract a claim."}],
+        "answer",
+        schema=schema,
+    )
+
+    rendered_prompt = run.call_args.args[0][-1]
+    assert rendered_prompt.startswith("USER:\nExtract a claim.")
+    assert json.dumps(schema, separators=(",", ":"), sort_keys=True) in rendered_prompt
+    assert "JSON" in rendered_prompt
+
+
+def test_cursor_malformed_nested_result_raises_model_output_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway, _, ModelOutputError, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "cursor")
+    run = Mock(return_value=_completed(json.dumps({"result": "not-json-inside"})))
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with pytest.raises(ModelOutputError, match="valid structured output"):
+        gateway.complete(
+            [{"role": "user", "content": "Hello"}],
+            "extract",
+            schema={"type": "object"},
+        )
+
+
+def test_cursor_warns_when_api_key_is_set(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "cursor")
+    monkeypatch.setenv("CURSOR_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        subprocess, "run", Mock(return_value=_completed(json.dumps({"result": "ok"})))
+    )
+
+    with caplog.at_level(logging.WARNING):
+        gateway.complete([{"role": "user", "content": "Hi"}], "answer")
+
+    assert any(
+        "CURSOR_API_KEY" in record.message and "subscription" in record.message.lower()
+        for record in caplog.records
+    )
+
+
+def test_cursor_does_not_warn_without_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    gateway, _, _, _ = _gateway_modules()
+    monkeypatch.setenv("LLM_BACKEND_DEFAULT", "cursor")
+    monkeypatch.delenv("CURSOR_API_KEY", raising=False)
+    monkeypatch.setattr(
+        subprocess, "run", Mock(return_value=_completed(json.dumps({"result": "ok"})))
+    )
+
+    with caplog.at_level(logging.WARNING):
+        gateway.complete([{"role": "user", "content": "Hi"}], "answer")
+
+    assert not any("CURSOR_API_KEY" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("backend", ["claude", "codex", "cursor"])
 def test_nonzero_cli_exit_raises_model_call_error(
     monkeypatch: pytest.MonkeyPatch,
     backend: str,
@@ -176,7 +297,7 @@ def test_nonzero_cli_exit_raises_model_call_error(
         gateway.complete([{"role": "user", "content": "Hello"}], "answer")
 
 
-@pytest.mark.parametrize("backend", ["claude", "codex"])
+@pytest.mark.parametrize("backend", ["claude", "codex", "cursor"])
 def test_cli_timeout_raises_model_timeout_error(
     monkeypatch: pytest.MonkeyPatch,
     backend: str,
@@ -202,6 +323,7 @@ def test_cli_timeout_raises_model_timeout_error(
     [
         ("claude", "not-json"),
         ("codex", "not-json"),
+        ("cursor", "not-json"),
     ],
 )
 def test_malformed_schema_output_raises_model_output_error(

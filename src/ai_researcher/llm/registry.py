@@ -6,11 +6,13 @@ from ai_researcher.config import Settings
 from ai_researcher.llm.backends.base import Backend
 from ai_researcher.llm.backends.claude_cli import ClaudeCliBackend
 from ai_researcher.llm.backends.codex_cli import CodexCliBackend
+from ai_researcher.llm.backends.cursor_cli import CursorCliBackend
 from ai_researcher.llm.errors import ModelCallError
 
 _BACKENDS: dict[str, type[Backend]] = {
     "claude": ClaudeCliBackend,
     "codex": CodexCliBackend,
+    "cursor": CursorCliBackend,
 }
 
 

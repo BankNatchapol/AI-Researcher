@@ -34,9 +34,13 @@ Decisions that apply across **all** phases:
 - **Local services via Docker Compose:** Postgres and GROBID. GROBID publishes ARM images
   for Apple Silicon. One `docker compose up` brings up the whole backing stack.
 - **Model access only through the CLI gateway module.** Access is via CLI subscription
-  (`claude -p`, `codex exec`) — there is no provider API key anywhere. No module outside
-  `ai_researcher/llm/` invokes a model CLI or imports an LLM SDK. Backend selection by job
-  type is configuration, not product logic.
+  (`claude -p`, `codex exec`, `agent -p --mode ask`) — there is no provider API key
+  anywhere. No module outside `ai_researcher/llm/` invokes a model CLI or imports an LLM
+  SDK. Backend selection by job type is configuration, not product logic. The `cursor`
+  backend has no CLI-level structured-output enforcement; jobs routed to it under a schema
+  depend on prompt-embedded instructions alone and carry a materially higher
+  malformed-output rate than `claude`/`codex` — treat it as best-effort for
+  extraction/stance/claim-identity-style jobs, not a like-for-like substitute.
 - **Model calls are non-agentic and batched.** Gateway calls run read-only with a turn limit
   so they can never modify the working tree. Callers batch many items into one call — at CLI
   latency, per-item calls are the difference between an overnight job and an infeasible one.
@@ -107,8 +111,8 @@ Recorded so later phases inherit them rather than rediscovering them:
    unrelated to scite.ai "Smart Citations" (citation-intent classification, an evidence
    signal). Conflating them would corrupt the scoring layer.
 7. **CLI-subscription model access is the binding cost constraint.** There is no provider
-   API key; every model call is a `claude -p` or `codex exec` subprocess with multi-second
-   startup, subject to subscription rate caps. This makes **batching mandatory, not an
+   API key; every model call is a `claude -p`, `codex exec`, or `agent -p` subprocess with
+   multi-second startup, subject to subscription rate caps. This makes **batching mandatory, not an
    optimization**. Per-item calls at the 1,000-paper ceiling would mean 15,000+ invocations
    and 20+ hours; batched, the same work is roughly 1,000 calls and runs overnight. Any task
    that loops the gateway per item is a defect. Recorded escape hatch: if API access is ever

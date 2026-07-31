@@ -89,8 +89,12 @@ requires breaking one, stop and raise it rather than working around the test.
    from `discourse/`. Community attention measures interest, not validity.
 5. **All model calls go through `ai_researcher.llm.gateway`.** No other module imports
    a model CLI or imports an LLM SDK. Access is via CLI subscription (`claude -p`,
-   `codex exec`) — there is no provider API key. Backend is resolved per job from config.
-   Calls are non-agentic (read-only, turn-limited) and callers batch many items per call.
+   `codex exec`, `agent -p --mode ask`) — there is no provider API key. Backend is resolved
+   per job from config. Calls are non-agentic (read-only, turn-limited) and callers batch
+   many items per call. The `cursor` backend has no CLI-level schema enforcement (`agent`
+   has no `--json-schema`/`--output-schema` equivalent) — structured-output jobs routed to
+   it rely on prompt-embedded instructions alone and are best-effort, not a guaranteed-valid
+   substitute for `claude`/`codex`.
 6. **Sources are plugins.** Adding a source means writing one adapter against a fixed
    protocol and registering it — never editing the pipeline. `EvidenceSource` and
    `DiscourseSource` are deliberately distinct protocols sharing no base class.
@@ -105,7 +109,8 @@ requires breaking one, stop and raise it rather than working around the test.
 - **pytest** for tests, **ruff** for lint and format — not black, not flake8
 - **PostgreSQL** (plain) as the only store
 - **GROBID** in Docker for PDF → TEI parsing
-- **CLI model gateway** — shells out to `claude -p` or `codex exec` per job type. No API keys.
+- **CLI model gateway** — shells out to `claude -p`, `codex exec`, or `agent -p --mode ask`
+  per job type. No API keys.
 - Two surfaces over one core library: a **CLI** (`airesearch`) and an **MCP server**. Neither
   contains business logic; both call the same core functions.
 
