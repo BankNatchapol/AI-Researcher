@@ -1,0 +1,15 @@
+{
+  "status": "ok",
+  "message": "",
+  "solution": {
+    "url": "https://example.com/paper/missing",
+    "status": 404,
+    "headers": {"content-type": "text/html"},
+    "response": "<html><body><h1>Not found</h1></body></html>",
+    "cookies": [],
+    "userAgent": "Mozilla/5.0 (FlareSolverr test fixture)"
+  },
+  "startTimestamp": 1700000000000,
+  "endTimestamp": 1700000005000,
+  "version": "3.3.21"
+}

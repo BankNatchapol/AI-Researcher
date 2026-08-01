@@ -27,6 +27,8 @@ class Settings:
     llm_max_concurrency: int
     contact_email: str
     source_min_intervals: Mapping[str, float]
+    semantic_scholar_api_key: str | None
+    flaresolverr_url: str | None
     storage_dir: Path
     shortlist_backend: str
     traversal_max_nodes: int
@@ -187,6 +189,8 @@ def get_settings() -> Settings:
         ),
         contact_email=_required_environment_variable("CONTACT_EMAIL"),
         source_min_intervals=_source_min_intervals(),
+        semantic_scholar_api_key=_optional_environment_variable("SEMANTIC_SCHOLAR_API_KEY"),
+        flaresolverr_url=_optional_environment_variable("FLARESOLVERR_URL"),
         storage_dir=Path(os.environ.get("STORAGE_DIR", "data/papers")),
         shortlist_backend=os.environ.get("SHORTLIST_BACKEND", "pageindex"),
         traversal_max_nodes=_positive_integer_environment_variable(

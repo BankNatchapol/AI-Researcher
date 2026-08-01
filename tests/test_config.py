@@ -65,3 +65,29 @@ def test_shortlist_backend_defaults_to_pageindex_and_reads_environment(
 
     monkeypatch.setenv("SHORTLIST_BACKEND", "postgres_fts")
     assert config.get_settings().shortlist_backend == "postgres_fts"
+
+
+def test_semantic_scholar_api_key_defaults_to_none_and_reads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_required_environment(monkeypatch)
+    config = _load_config_module()
+
+    monkeypatch.delenv("SEMANTIC_SCHOLAR_API_KEY", raising=False)
+    assert config.get_settings().semantic_scholar_api_key is None
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "test-key")
+    assert config.get_settings().semantic_scholar_api_key == "test-key"
+
+
+def test_flaresolverr_url_defaults_to_none_and_reads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_required_environment(monkeypatch)
+    config = _load_config_module()
+
+    monkeypatch.delenv("FLARESOLVERR_URL", raising=False)
+    assert config.get_settings().flaresolverr_url is None
+
+    monkeypatch.setenv("FLARESOLVERR_URL", "http://localhost:8191/v1")
+    assert config.get_settings().flaresolverr_url == "http://localhost:8191/v1"

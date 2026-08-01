@@ -76,3 +76,39 @@ def test_two_consecutive_calls_observe_configured_semantic_scholar_interval(scop
     list(source.search(scope, limit=1))
 
     assert clock.sleeps == [1.0]
+
+
+def test_search_sends_api_key_header_when_configured(
+    scope, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "test-key")
+    requester = FixtureRequester("semantic_scholar_search.json")
+    source = SemanticScholarSource(requester=requester)
+
+    list(source.search(scope, limit=1))
+
+    assert requester.calls[0][1]["x-api-key"] == "test-key"
+
+
+def test_fetch_metadata_sends_api_key_header_when_configured(
+    scope, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "test-key")
+    search_requester = FixtureRequester("semantic_scholar_search.json")
+    source = SemanticScholarSource(requester=search_requester)
+    ref = next(iter(source.search(scope, limit=1)))
+    metadata_requester = FixtureRequester("semantic_scholar_paper.json")
+    source.requester = metadata_requester
+
+    source.fetch_metadata(ref)
+
+    assert metadata_requester.calls[0][1]["x-api-key"] == "test-key"
+
+
+def test_search_omits_api_key_header_when_not_configured(scope) -> None:
+    requester = FixtureRequester("semantic_scholar_search.json")
+    source = SemanticScholarSource(requester=requester)
+
+    list(source.search(scope, limit=1))
+
+    assert "x-api-key" not in requester.calls[0][1]

@@ -2,7 +2,11 @@
 
 import os
 from dataclasses import dataclass, field
+from email.message import Message
+from io import BytesIO
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.response import addinfourl
 
 import pytest
 
@@ -52,3 +56,49 @@ class FixtureRequester:
     def __call__(self, url: str, headers: dict[str, str]) -> bytes:
         self.calls.append((url, headers))
         return (FIXTURES / self.fixture_name).read_bytes()
+
+
+@dataclass
+class FixturePostRequester:
+    """POST requester that can only return a committed fixture."""
+
+    fixture_name: str
+    calls: list[tuple[str, dict[str, str], bytes]] = field(default_factory=list)
+
+    def __call__(self, url: str, headers: dict[str, str], body: bytes) -> bytes:
+        self.calls.append((url, headers, body))
+        return (FIXTURES / self.fixture_name).read_bytes()
+
+
+@dataclass
+class SequencedResponses:
+    """Plays back a scripted sequence of bytes/Exception, one per call.
+
+    Works as either a 2-arg Requester or a 3-arg PostRequester, since ``body`` is
+    optional and unused for GET-shaped calls.
+    """
+
+    responses: list[bytes | Exception]
+    calls: list[tuple] = field(default_factory=list)
+
+    def __call__(self, url: str, headers: dict[str, str], body: bytes | None = None) -> bytes:
+        self.calls.append((url, headers) if body is None else (url, headers, body))
+        outcome = self.responses[len(self.calls) - 1]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def make_http_error(url: str, code: int, *, retry_after: str | None = None) -> HTTPError:
+    """Build a realistic HTTPError, optionally carrying a Retry-After header."""
+
+    headers = Message()
+    if retry_after is not None:
+        headers["Retry-After"] = retry_after
+    return HTTPError(
+        url,
+        code,
+        "",
+        hdrs=headers,
+        fp=addinfourl(BytesIO(b""), {}, url),
+    )

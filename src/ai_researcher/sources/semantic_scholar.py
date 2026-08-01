@@ -6,6 +6,7 @@ from datetime import date
 from time import monotonic, sleep
 from urllib.parse import quote, urlencode
 
+from ai_researcher.config import get_settings
 from ai_researcher.sources._http import Requester, SourceHttp, request_bytes
 from ai_researcher.sources.base import PaperMetadata, PaperRef, Scope
 
@@ -62,12 +63,12 @@ class SemanticScholarSource:
             end = scope.date_to.isoformat() if scope.date_to else ""
             parameters["publicationDateOrYear"] = f"{start}:{end}"
         url = f"{_API_URL}/paper/search?{urlencode(parameters)}"
-        payload = self._json(self._http.get(url))
+        payload = self._json(self._http.get(url, extra_headers=self._auth_headers()))
         return [self._ref(paper) for paper in payload.get("data", [])]
 
     def fetch_metadata(self, ref: PaperRef) -> PaperMetadata:
         url = f"{_API_URL}/paper/{quote(ref.external_id, safe='')}?{urlencode({'fields': _FIELDS})}"
-        paper = self._json(self._http.get(url))
+        paper = self._json(self._http.get(url, extra_headers=self._auth_headers()))
         publication_date = paper.get("publicationDate")
         external_ids = paper.get("externalIds") or {}
         return PaperMetadata(
@@ -88,6 +89,11 @@ class SemanticScholarSource:
 
     def pdf_url(self, ref: PaperRef) -> str | None:
         return ref.pdf_url
+
+    @staticmethod
+    def _auth_headers() -> dict[str, str] | None:
+        api_key = get_settings().semantic_scholar_api_key
+        return {"x-api-key": api_key} if api_key else None
 
     @staticmethod
     def _json(payload: bytes) -> dict:
